@@ -1,0 +1,68 @@
+name: Bug report
+description: Report a problem with the unofficial Linux AppImage
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is an unofficial build. For bugs in the Wire application itself
+        (messages, calls, protocol, account), please report them
+        [upstream](https://github.com/wireapp/wire-desktop/issues).
+
+        Do not include message contents, account data or unredacted logs.
+  - type: input
+    id: version
+    attributes:
+      label: Build version
+      description: From the release tag or the app's About window (e.g. 3.46.5382)
+      placeholder: "3.46.5382"
+    validations:
+      required: true
+  - type: textarea
+    id: build-info
+    attributes:
+      label: build-info.json
+      description: Attach or paste the build-info.json from the release.
+      render: json
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Installation method
+      options:
+        - Gear Lever
+        - install.sh
+        - Manual AppImage
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: session
+    attributes:
+      label: Session type
+      options:
+        - Wayland
+        - X11
+        - Unknown
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Distribution and desktop
+      placeholder: "CachyOS, KDE Plasma 6.4"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Steps to reproduce and expected behaviour.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Redacted console output or ~/.config/Wire/console.log.
+      render: text

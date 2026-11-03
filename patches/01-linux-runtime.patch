@@ -1,0 +1,489 @@
+diff --git a/electron/src/mainProcess.ts b/electron/src/mainProcess.ts
+index 27c72cec..b780c747 100644
+--- a/electron/src/mainProcess.ts
++++ b/electron/src/mainProcess.ts
+@@ -836,6 +836,21 @@ const handleAppEvents = (): void => {
+   });
+ };
+ 
++const addLinuxWorkarounds = (): void => {
++  if (EnvironmentUtil.platform.IS_LINUX) {
++    // Fix indicator icon on Unity
++    // Source: https://bugs.launchpad.net/ubuntu/+bug/1559249
++
++    if (
++      EnvironmentUtil.linuxDesktop.isUbuntuUnity ||
++      EnvironmentUtil.linuxDesktop.isPopOS ||
++      EnvironmentUtil.linuxDesktop.isGnomeX11
++    ) {
++      process.env.XDG_CURRENT_DESKTOP = 'Unity';
++    }
++  }
++};
++
+ const handlePortableFlags = (): void => {
+   configuredUserDataPath.match({
+     Just: logConfiguredUserDataPath,
+@@ -1160,6 +1175,7 @@ lifecycle.addRelaunchListeners(async () => {
+ 
+ // Stop further execution on update to prevent second tray icon
+ if (lifecycle.isFirstInstance) {
++  addLinuxWorkarounds();
+   initializeFirstInstance({
+     bindIpcEvents,
+     ensureMainProcessLogFile() {
+diff --git a/electron/src/managed/ManagedConfig.test.main.ts b/electron/src/managed/ManagedConfig.test.main.ts
+index cdbe0c81..d9ce84b2 100644
+--- a/electron/src/managed/ManagedConfig.test.main.ts
++++ b/electron/src/managed/ManagedConfig.test.main.ts
+@@ -21,6 +21,7 @@ import {fake, replace, restore} from 'sinon';
+ 
+ import * as assert from 'assert';
+ 
++import * as linuxBackend from './backends/linux';
+ import * as macosBackend from './backends/macos';
+ import * as windowsBackend from './backends/windows';
+ import {clearManagedConfigCache, getManagedConfig} from './ManagedConfig';
+@@ -37,40 +38,58 @@ describe('getManagedConfig', () => {
+     clearManagedConfigCache();
+   });
+ 
++  it('enables the override when a managed config payload is present', () => {
++    replace(EnvironmentUtil, 'platform', {IS_WINDOWS: false, IS_MAC_OS: false, IS_LINUX: true});
++    replace(linuxBackend, 'isDeviceManagedLinux', fake.returns(true) as any);
++    assert.deepStrictEqual(getManagedConfig(), {applockOverride: true});
++  });
++
++  it('disables the override when no managed config is present', () => {
++    replace(EnvironmentUtil, 'platform', {IS_WINDOWS: false, IS_MAC_OS: false, IS_LINUX: true});
++    replace(linuxBackend, 'isDeviceManagedLinux', fake.returns(false) as any);
++    assert.deepStrictEqual(getManagedConfig(), {applockOverride: false});
++  });
++
++  it('treats a present payload as enabled unless it explicitly opts out', () => {
++    replace(EnvironmentUtil, 'platform', {IS_WINDOWS: false, IS_MAC_OS: false, IS_LINUX: true});
++    replace(linuxBackend, 'isDeviceManagedLinux', fake.returns(false) as any);
++    assert.deepStrictEqual(getManagedConfig(), {applockOverride: false});
++  });
++
+   it('memoizes the result and reads the underlying source only once', () => {
+-    replace(EnvironmentUtil, 'platform', {IS_WINDOWS: true, IS_MAC_OS: false});
++    replace(EnvironmentUtil, 'platform', {IS_WINDOWS: false, IS_MAC_OS: false, IS_LINUX: true});
+     const backendCall = fake.returns(false);
+-    replace(windowsBackend, 'isDeviceManagedWindows', backendCall as any);
++    replace(linuxBackend, 'isDeviceManagedLinux', backendCall as any);
+     getManagedConfig();
+     getManagedConfig();
+     assert.strictEqual(backendCall.callCount, 1);
+   });
+ 
+   it('never throws and defaults to disabled on an unrecognized platform', () => {
+-    replace(EnvironmentUtil, 'platform', {IS_WINDOWS: false, IS_MAC_OS: false});
++    replace(EnvironmentUtil, 'platform', {IS_WINDOWS: false, IS_MAC_OS: false, IS_LINUX: false});
+     assert.deepStrictEqual(getManagedConfig(), {applockOverride: false});
+   });
+ 
+   it('enables the override on Windows when a managed config payload is present', () => {
+-    replace(EnvironmentUtil, 'platform', {IS_WINDOWS: true, IS_MAC_OS: false});
++    replace(EnvironmentUtil, 'platform', {IS_WINDOWS: true, IS_MAC_OS: false, IS_LINUX: false});
+     replace(windowsBackend, 'isDeviceManagedWindows', fake.returns(true) as any);
+     assert.deepStrictEqual(getManagedConfig(), {applockOverride: true});
+   });
+ 
+   it('disables the override on Windows when no managed config is present', () => {
+-    replace(EnvironmentUtil, 'platform', {IS_WINDOWS: true, IS_MAC_OS: false});
++    replace(EnvironmentUtil, 'platform', {IS_WINDOWS: true, IS_MAC_OS: false, IS_LINUX: false});
+     replace(windowsBackend, 'isDeviceManagedWindows', fake.returns(false) as any);
+     assert.deepStrictEqual(getManagedConfig(), {applockOverride: false});
+   });
+ 
+   it('enables the override on macOS when a managed config payload is present', () => {
+-    replace(EnvironmentUtil, 'platform', {IS_WINDOWS: false, IS_MAC_OS: true});
++    replace(EnvironmentUtil, 'platform', {IS_WINDOWS: false, IS_MAC_OS: true, IS_LINUX: false});
+     replace(macosBackend, 'isDeviceManagedMacOS', fake.returns(true) as any);
+     assert.deepStrictEqual(getManagedConfig(), {applockOverride: true});
+   });
+ 
+   it('disables the override on macOS when no managed config is present', () => {
+-    replace(EnvironmentUtil, 'platform', {IS_WINDOWS: false, IS_MAC_OS: true});
++    replace(EnvironmentUtil, 'platform', {IS_WINDOWS: false, IS_MAC_OS: true, IS_LINUX: false});
+     replace(macosBackend, 'isDeviceManagedMacOS', fake.returns(false) as any);
+     assert.deepStrictEqual(getManagedConfig(), {applockOverride: false});
+   });
+diff --git a/electron/src/managed/ManagedConfig.ts b/electron/src/managed/ManagedConfig.ts
+index a8b4effb..47cf2f2c 100644
+--- a/electron/src/managed/ManagedConfig.ts
++++ b/electron/src/managed/ManagedConfig.ts
+@@ -17,6 +17,7 @@
+  *
+  */
+ 
++import {isDeviceManagedLinux} from './backends/linux';
+ import {isDeviceManagedMacOS} from './backends/macos';
+ import {isDeviceManagedWindows} from './backends/windows';
+ 
+@@ -43,6 +44,9 @@ function detectApplockOverride(): boolean {
+   if (EnvironmentUtil.platform.IS_MAC_OS) {
+     return isDeviceManagedMacOS();
+   }
++  if (EnvironmentUtil.platform.IS_LINUX) {
++    return isDeviceManagedLinux();
++  }
+   return false;
+ }
+ 
+diff --git a/electron/src/managed/backends/linux.ts b/electron/src/managed/backends/linux.ts
+new file mode 100644
+index 00000000..1fb84bc1
+--- /dev/null
++++ b/electron/src/managed/backends/linux.ts
+@@ -0,0 +1,41 @@
++/*
++ * Wire
++ * Copyright (C) 2026 Wire Swiss GmbH
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program. If not, see http://www.gnu.org/licenses/.
++ *
++ */
++
++import * as fs from 'fs-extra';
++
++import {getLogger} from '../../logging/getLogger';
++import {APPLOCK_OVERRIDE_KEY, LINUX_MANAGED_CONFIG_PATH} from '../constants';
++
++const logger = getLogger('ManagedConfig/linux');
++
++// Linux has no standard MDM enrollment API, so managed status is driven by the presence of a
++// machine-wide managed config file placed by the organization. The file's presence means managed,
++// unless it explicitly opts out with `{"applockOverride": false}`. A missing/unreadable file means unmanaged.
++export function isDeviceManagedLinux(): boolean {
++  try {
++    const managedConfig = fs.readJSONSync(LINUX_MANAGED_CONFIG_PATH);
++    return managedConfig?.[APPLOCK_OVERRIDE_KEY] !== false;
++  } catch {
++    // Missing file is the normal unmanaged path; only log genuine parse errors.
++    if (fs.pathExistsSync(LINUX_MANAGED_CONFIG_PATH)) {
++      logger.warn(`Failed to parse ${LINUX_MANAGED_CONFIG_PATH}, treating the device as unmanaged.`);
++    }
++    return false;
++  }
++}
+diff --git a/electron/src/managed/constants.ts b/electron/src/managed/constants.ts
+index 07bf4720..9c470d65 100644
+--- a/electron/src/managed/constants.ts
++++ b/electron/src/managed/constants.ts
+@@ -35,3 +35,6 @@ export const APPLOCK_OVERRIDE_KEY = 'applockOverride';
+ export const WINDOWS_POLICY_KEY = 'SOFTWARE\\Policies\\Wire';
+ 
+ // macOS reads `APPLOCK_OVERRIDE_KEY` from the app's defaults domain (pushed via an MDM AppConfig profile).
++
++/** Linux: machine-wide managed config file holding the `APPLOCK_OVERRIDE_KEY` flag. */
++export const LINUX_MANAGED_CONFIG_PATH = '/etc/wire/managed.json';
+diff --git a/electron/src/menu/TrayHandler.ts b/electron/src/menu/TrayHandler.ts
+index 0ccae9fe..dd13d63e 100644
+--- a/electron/src/menu/TrayHandler.ts
++++ b/electron/src/menu/TrayHandler.ts
+@@ -22,6 +22,7 @@ import {app, BrowserWindow, Menu, NativeImage, nativeImage, Tray} from 'electron
+ import * as path from 'path';
+ 
+ import * as locale from '../locale';
++import {linuxDesktop, platform} from '../runtime/EnvironmentUtil';
+ import * as lifecycle from '../runtime/lifecycle';
+ import {config} from '../settings/config';
+ import {WindowManager} from '../window/WindowManager';
+@@ -42,10 +43,18 @@ export class TrayHandler {
+   initTray(trayIcon = new Tray(nativeImage.createEmpty())): void {
+     const IMAGE_ROOT = path.join(app.getAppPath(), config.electronDirectory, 'img');
+ 
++    let trayPng = 'tray.png';
++    let trayBadgePng = 'tray.badge.png';
++
++    if (platform.IS_LINUX) {
++      trayPng = `tray${linuxDesktop.isGnomeX11 ? '.gnome' : '@3x'}.png`;
++      trayBadgePng = `tray.badge${linuxDesktop.isGnomeX11 ? '.gnome' : '@3x'}.png`;
++    }
++
+     const iconPaths = {
+       badge: path.join(IMAGE_ROOT, 'taskbar.overlay.png'),
+-      tray: path.join(IMAGE_ROOT, 'tray-icon/tray/tray.png'),
+-      trayWithBadge: path.join(IMAGE_ROOT, 'tray-icon/tray-with-badge/tray.badge.png'),
++      tray: path.join(IMAGE_ROOT, 'tray-icon/tray', trayPng),
++      trayWithBadge: path.join(IMAGE_ROOT, 'tray-icon/tray-with-badge', trayBadgePng),
+     };
+ 
+     this.icons = {
+diff --git a/electron/src/menu/system.test.main.ts b/electron/src/menu/system.test.main.ts
+index 04156e07..b619f1a4 100644
+--- a/electron/src/menu/system.test.main.ts
++++ b/electron/src/menu/system.test.main.ts
+@@ -29,8 +29,8 @@ import * as EnvironmentUtil from '../runtime/EnvironmentUtil';
+ import {config} from '../settings/config';
+ 
+ const supportedPlatforms = [
+-  {name: 'Windows', platform: {IS_WINDOWS: true, IS_MAC_OS: false}},
+-  {name: 'macOS', platform: {IS_WINDOWS: false, IS_MAC_OS: true}},
++  {name: 'Windows', platform: {IS_WINDOWS: true, IS_MAC_OS: false, IS_LINUX: false}},
++  {name: 'macOS', platform: {IS_WINDOWS: false, IS_MAC_OS: true, IS_LINUX: false}},
+ ];
+ 
+ function collectMenuAccelerators(menuItems: MenuItemConstructorOptions[]): string[] {
+diff --git a/electron/src/menu/system.ts b/electron/src/menu/system.ts
+index 8f84ca93..13c16e0f 100644
+--- a/electron/src/menu/system.ts
++++ b/electron/src/menu/system.ts
+@@ -36,12 +36,14 @@ import {SettingsType} from '../settings/SettingsType';
+ import {WindowManager} from '../window/WindowManager';
+ import {openExternal, sendToWebContents} from '../window/WindowUtil';
+ 
++const launchCmd = process.env.APPIMAGE || process.execPath;
++
+ const logger = getLogger(path.basename(__filename));
+ 
+ const launcher = new autoLaunch({
+   isHidden: true,
+   name: config.name,
+-  path: process.execPath,
++  path: launchCmd,
+ });
+ 
+ const separatorTemplate: MenuItemConstructorOptions = {
+@@ -355,6 +357,24 @@ const win32Template: MenuItemConstructorOptions = {
+   ],
+ };
+ 
++const linuxTemplate: MenuItemConstructorOptions = {
++  label: `&${config.name}`,
++  submenu: [
++    toggleAutoLaunchTemplate,
++    separatorTemplate,
++    localeTemplate,
++    separatorTemplate,
++    spellingTemplate,
++    separatorTemplate,
++    signOutTemplate,
++    {
++      accelerator: 'Ctrl+Q',
++      click: () => lifecycle.quit(),
++      label: locale.getText('menuQuit'),
++    },
++  ],
++};
++
+ const processMenu = (template: Iterable<MenuItemConstructorOptions>, language: locale.SupportedI18nLanguage): void => {
+   for (const item of template) {
+     if (item.submenu) {
+@@ -407,6 +427,48 @@ export function createMenu(isFullScreen: boolean, wallClock: WallClock): Menu {
+     }
+   }
+ 
++  if (EnvironmentUtil.platform.IS_LINUX && Array.isArray(windowTemplate.submenu)) {
++    const muteAccelerator = 'Ctrl+Alt+M';
++
++    const muteShortcut: MenuItemConstructorOptions = {
++      accelerator: muteAccelerator,
++      click: (_menuItem, baseWindow) =>
++        sendToWebContents(baseWindow, EVENT_TYPE.UI.SYSTEM_MENU, EVENT_TYPE.CONVERSATION.TOGGLE_MUTE),
++      label: 'Toggle mute',
++      visible: false,
++    };
++
++    const switchShortcuts: MenuItemConstructorOptions[] = Array.from(
++      {length: config.maximumAccounts},
++      (_key, index) => {
++        const switchAccelerator = `Ctrl+${index + 1}`;
++
++        return {
++          accelerator: switchAccelerator,
++          click: (_menuItem, baseWindow) => sendToWebContents(baseWindow, EVENT_TYPE.ACTION.SWITCH_ACCOUNT, index),
++          label: `Switch to Account ${index + 1}`,
++          visible: false,
++        };
++      },
++    );
++
++    windowTemplate.submenu.push(muteShortcut, ...switchShortcuts);
++
++    menuTemplate.unshift(linuxTemplate);
++    if (Array.isArray(editTemplate.submenu)) {
++      editTemplate.submenu.push(separatorTemplate, {
++        accelerator: 'Ctrl+,',
++        click: (_menuItem, baseWindow) =>
++          sendToWebContents(baseWindow, EVENT_TYPE.UI.SYSTEM_MENU, EVENT_TYPE.PREFERENCES.SHOW),
++        label: locale.getText('menuPreferences'),
++      });
++    }
++    if (Array.isArray(windowTemplate.submenu)) {
++      windowTemplate.submenu.push(separatorTemplate, toggleMenuTemplate, separatorTemplate, toggleFullScreenTemplate);
++    }
++    toggleFullScreenTemplate.checked = isFullScreen;
++  }
++
+   if (!EnvironmentUtil.platform.IS_MAC_OS) {
+     if (Array.isArray(helpTemplate.submenu)) {
+       helpTemplate.submenu.push(separatorTemplate, aboutTemplate);
+@@ -435,24 +497,28 @@ export const toggleSpellChecking = async (): Promise<void> => {
+ };
+ 
+ export const registerGlobalShortcuts = (): void => {
+-  const muteAccelerator = 'CmdOrCtrl+Alt+M';
+-  logger.info(`Registering global mute shortcut "${muteAccelerator}" ...`);
++  if (!EnvironmentUtil.platform.IS_LINUX) {
++    const muteAccelerator = 'CmdOrCtrl+Alt+M';
++    logger.info(`Registering global mute shortcut "${muteAccelerator}" ...`);
+ 
+-  globalShortcut.register(muteAccelerator, () =>
+-    WindowManager.sendActionToPrimaryWindow(EVENT_TYPE.UI.SYSTEM_MENU, EVENT_TYPE.CONVERSATION.TOGGLE_MUTE),
+-  );
++    globalShortcut.register(muteAccelerator, () =>
++      WindowManager.sendActionToPrimaryWindow(EVENT_TYPE.UI.SYSTEM_MENU, EVENT_TYPE.CONVERSATION.TOGGLE_MUTE),
++    );
+ 
+-  Array.from({length: config.maximumAccounts}, (_key, index) => {
+-    const switchAccelerator = `CmdOrCtrl+${index + 1}`;
+-    logger.info(`Registering global account switching shortcut "${switchAccelerator}" ...`);
++    Array.from({length: config.maximumAccounts}, (_key, index) => {
++      const switchAccelerator = `CmdOrCtrl+${index + 1}`;
++      logger.info(`Registering global account switching shortcut "${switchAccelerator}" ...`);
+ 
+-    globalShortcut.register(switchAccelerator, () => {
+-      WindowManager.sendActionToPrimaryWindow(EVENT_TYPE.ACTION.SWITCH_ACCOUNT, index);
++      globalShortcut.register(switchAccelerator, () => {
++        WindowManager.sendActionToPrimaryWindow(EVENT_TYPE.ACTION.SWITCH_ACCOUNT, index);
++      });
+     });
+-  });
++  }
+ };
+ 
+ export const unregisterGlobalShortcuts = (): void => {
+-  logger.info('Unregistering all global shortcuts ...');
+-  globalShortcut.unregisterAll();
++  if (!EnvironmentUtil.platform.IS_LINUX) {
++    logger.info('Unregistering all global shortcuts ...');
++    globalShortcut.unregisterAll();
++  }
+ };
+diff --git a/electron/src/runtime/EnvironmentUtil.ts b/electron/src/runtime/EnvironmentUtil.ts
+index 5efca9c5..00bb4bf9 100644
+--- a/electron/src/runtime/EnvironmentUtil.ts
++++ b/electron/src/runtime/EnvironmentUtil.ts
+@@ -75,11 +75,29 @@ export const app = {
+   UPDATE_URL_WIN: config.updateUrl,
+ };
+ 
++const isEnvVar = (envVar: string, value: string, caseSensitive = false): boolean => {
++  let envVarContent = process.env[envVar] || '';
++
++  if (!caseSensitive) {
++    envVar = envVar.toLowerCase();
++    envVarContent = envVarContent.toLowerCase();
++  }
++
++  return envVarContent.includes(value);
++};
++
+ export const platform = {
++  IS_LINUX: process.platform === 'linux',
+   IS_MAC_OS: process.platform === 'darwin',
+   IS_WINDOWS: process.platform === 'win32',
+ };
+ 
++export const linuxDesktop = {
++  isGnomeX11: isEnvVar('XDG_CURRENT_DESKTOP', 'gnome') && isEnvVar('XDG_SESSION_TYPE', 'x11'),
++  isPopOS: isEnvVar('XDG_CURRENT_DESKTOP', 'pop'),
++  isUbuntuUnity: isEnvVar('XDG_CURRENT_DESKTOP', 'Unity'),
++};
++
+ export const setEnvironment = (env: ServerType): void => {
+   currentEnvironment = env;
+   settings.save(SettingsType.ENV, env);
+diff --git a/electron/src/runtime/configurePortableUserData.ts b/electron/src/runtime/configurePortableUserData.ts
+index 59370d5b..4c36a559 100644
+--- a/electron/src/runtime/configurePortableUserData.ts
++++ b/electron/src/runtime/configurePortableUserData.ts
+@@ -38,6 +38,7 @@ function getPortableUserDataPathParameters(): PortableUserDataPathParameters {
+   const commandLineArguments = getCommandLineArguments();
+ 
+   return {
++    appImagePath: Maybe.of(process.env.APPIMAGE),
+     executablePath: process.execPath,
+     portableModeEnabled: Boolean(commandLineArguments[config.ARGUMENT.PORTABLE]),
+     userDataDirectoryArgument: getStringCommandLineArgument(commandLineArguments, config.ARGUMENT.USER_DATA_DIR),
+diff --git a/electron/src/runtime/portableUserData.test.main.ts b/electron/src/runtime/portableUserData.test.main.ts
+index b067dfda..de23977f 100644
+--- a/electron/src/runtime/portableUserData.test.main.ts
++++ b/electron/src/runtime/portableUserData.test.main.ts
+@@ -31,19 +31,21 @@ describe('portable user-data path', () => {
+       executablePath: '/Applications/Wire.app/Contents/MacOS/Wire',
+       portableModeEnabled: false,
+       userDataDirectoryArgument: Maybe.just('custom-user-data'),
++      appImagePath: Maybe.nothing<string>(),
+     });
+     const expectedPath = path.resolve('custom-user-data');
+ 
+     assert.strictEqual(actualPath.unwrapOr(''), expectedPath);
+   });
+ 
+-  it('resolves portable mode next to the executable', () => {
++  it('resolves portable mode below the AppImage path', () => {
+     const actualPath = resolvePortableUserDataPath({
+       executablePath: '/opt/Wire/Wire',
+       portableModeEnabled: true,
+       userDataDirectoryArgument: Maybe.nothing<string>(),
++      appImagePath: Maybe.just('/opt/Wire/Wire.AppImage'),
+     });
+-    const expectedPath = path.join('/opt/Wire/Wire', '../Data');
++    const expectedPath = path.join('/opt/Wire/Wire.AppImage', '../Data');
+ 
+     assert.strictEqual(actualPath.unwrapOr(''), expectedPath);
+   });
+@@ -53,6 +55,7 @@ describe('portable user-data path', () => {
+       executablePath: '/opt/Wire/Wire',
+       portableModeEnabled: false,
+       userDataDirectoryArgument: Maybe.nothing<string>(),
++      appImagePath: Maybe.nothing<string>(),
+     });
+ 
+     assert.strictEqual(actualPath.isNothing, true);
+@@ -66,6 +69,7 @@ describe('portable user-data path', () => {
+         executablePath: '/Applications/Wire.app/Contents/MacOS/Wire',
+         portableModeEnabled: false,
+         userDataDirectoryArgument: Maybe.just('custom-user-data'),
++        appImagePath: Maybe.nothing<string>(),
+       },
+       setUserDataPath: userDataPath => configuredUserDataPaths.push(userDataPath),
+     });
+diff --git a/electron/src/runtime/portableUserData.ts b/electron/src/runtime/portableUserData.ts
+index e7ecf338..bcc35af2 100644
+--- a/electron/src/runtime/portableUserData.ts
++++ b/electron/src/runtime/portableUserData.ts
+@@ -25,6 +25,7 @@ export type PortableUserDataPathParameters = {
+   executablePath: string;
+   portableModeEnabled: boolean;
+   userDataDirectoryArgument: Maybe<string>;
++  appImagePath: Maybe<string>;
+ };
+ 
+ export function resolvePortableUserDataPath(parameters: PortableUserDataPathParameters): Maybe<string> {
+@@ -33,7 +34,9 @@ export function resolvePortableUserDataPath(parameters: PortableUserDataPathPara
+   }
+ 
+   if (parameters.portableModeEnabled) {
+-    return Maybe.just(path.join(parameters.executablePath, '../Data'));
++    const executablePath = parameters.appImagePath.unwrapOr(parameters.executablePath);
++
++    return Maybe.just(path.join(executablePath, '../Data'));
+   }
+ 
+   return Maybe.nothing<string>();

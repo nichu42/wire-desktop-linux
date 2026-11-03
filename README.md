@@ -1,138 +1,246 @@
-# Wire™
+# Wire Desktop for Linux (unofficial AppImage builds)
 
-![Wire logo](https://github.com/wireapp/wire/blob/master/assets/logo.png?raw=true)
+[![Build Linux AppImage](https://github.com/nichu42/wire-desktop-linux/actions/workflows/build-linux.yml/badge.svg)](https://github.com/nichu42/wire-desktop-linux/actions/workflows/build-linux.yml)
+[![Latest release](https://img.shields.io/github/v/release/nichu42/wire-desktop-linux?label=release)](https://github.com/nichu42/wire-desktop-linux/releases/latest)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
 
-This repository is part of the source code of Wire. You can find more information at [wire.com](https://wire.com) or by contacting opensource@wire.com.
+Unofficial, automatically rebuilt Linux AppImage of the
+[Wire desktop client](https://github.com/wireapp/wire-desktop).
 
-You can find the published source code at [github.com/wireapp/wire](https://github.com/wireapp/wire).
+> **Not affiliated with or endorsed by Wire Swiss GmbH.** “Wire” is a
+> trademark of Wire Swiss GmbH. These builds are not QA-tested by Wire or by
+> this repository's maintainer; calls and screen sharing may have
+> distribution- or session-specific problems.
+> Wire's last Linux release was `3.40.3882` in December 2025; upstream removed
+> Linux support in 2026
+> ([wireapp/wire-desktop#9747](https://github.com/wireapp/wire-desktop/issues/9747)).
+> This fork exists so Linux users can keep using the open-source desktop
+> wrapper.
 
-For licensing information, see the attached LICENSE file and the list of third-party licenses at [wire.com/legal/licenses/](https://wire.com/legal/licenses/).
+## What this is
 
-If you compile the open source software that we make available from time to time to develop your own mobile, desktop or web application, and cause that application to connect to our servers for any purposes, we refer to that resulting application as an “Open Source App”. All Open Source Apps are subject to, and may only be used and/or commercialized in accordance with, the Terms of Use applicable to the Wire Application, which can be found at https://wire.com/legal/#terms. Additionally, if you choose to build an Open Source App, certain restrictions apply, as follows:
+The desktop app is a thin shell around the Wire web app: it hosts
+`https://app.wire.com` in an Electron webview and adds the tray icon,
+multi-account switching, notifications, `wire://` handling and autostart. The
+web app itself is hosted by Wire and updates automatically.
 
-a. You agree not to change the way the Open Source App connects and interacts with our servers; b. You agree not to weaken any of the security features of the Open Source App; c. You agree not to use our servers to store data for purposes other than the intended and original functionality of the Open Source App; d. You acknowledge that you are solely responsible for any and all updates to your Open Source App.
+This repository rebuilds that shell from Wire's source, applies the Linux
+runtime changes Wire removed, keeps Electron on the newest **supported**
+patch, runs the upstream test suite, and publishes an AppImage with Gear
+Lever-compatible update metadata.
 
-For clarity, if you compile the open source software that we make available from time to time to develop your own mobile, desktop or web application, and do not cause that application to connect to our servers for any purposes, then that application will not be deemed an Open Source App and the foregoing will not apply to that application.
+- Builds are triggered by new upstream `windows/*` release tags and by
+  Electron patch releases.
+- App versions match upstream build numbers (e.g. `3.46.5382`).
+- Nothing is published unless lint, the upstream test suite, artifact
+  assertions, a runtime smoke test and draft-asset verification pass.
 
-No license is granted to the Wire trademark and its associated logos, all of which will continue to be owned exclusively by Wire Swiss GmbH. Any use of the Wire trademark and/or its associated logos is expressly prohibited without the express prior written consent of Wire Swiss GmbH.
+## Install
 
-## Wire Desktop
+### Gear Lever (recommended)
 
-Wire Desktop supports macOS and Windows. It wraps the [wire-webapp](https://github.com/wireapp/wire-webapp) and is based on [Electron](https://electronjs.org).
+[Gear Lever](https://gearlever.mijorus.it) integrates AppImages into your app
+menu and manages updates.
 
-### Prerequisites
+1. Download `Wire-*.AppImage` from
+   [Releases](https://github.com/nichu42/wire-desktop-linux/releases/latest).
+2. Open Gear Lever → **Add AppImage** (or drag the file onto it).
+3. Gear Lever reads the update source embedded in the AppImage. Future
+   releases appear as updates; clicking **Update** replaces the AppImage and
+   keeps the menu entry.
 
-- [Node.js](https://nodejs.org/) matching the version defined in `.node-version`
-- Npm
-- Git
-- Yarn (install it using the [official instructions](https://yarnpkg.com/lang/en/docs/install/))
+If automatic detection ever fails: **Set update source** → GitHub →
+`nichu42/wire-desktop-linux`, filename `Wire-*x86_64.AppImage`.
 
-### Clone and install dependencies
+> Do **not** also use `install.sh` for an install managed by Gear Lever — you
+> would end up with two copies and duplicate menu entries.
 
-```shell
-git clone https://github.com/wireapp/wire-desktop.git
-cd wire-desktop
-yarn
+### install.sh (alternative)
+
+For systems without Gear Lever. Installs into `~/.local/bin` and
+`~/.local/share`, no root required for the normal install:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nichu42/wire-desktop-linux/linux/install.sh \
+  -o /tmp/wire-install.sh
+less /tmp/wire-install.sh   # optional, but recommended
+bash /tmp/wire-install.sh
 ```
 
-### Start
+Re-run the same command to update. `--version <release-tag>` pins a release
+(see the [releases page](https://github.com/nichu42/wire-desktop-linux/releases)),
+`--dry-run` verifies without writing, `--uninstall` removes the integration
+(the profile in `~/.config/Wire` is kept).
 
-```shell
-yarn start
+### Manual
+
+Download the AppImage, `chmod +x` it, and run it. The AppImage uses a static
+runtime, so FUSE is not required.
+
+## Verify
+
+Every release publishes `SHA256SUMS` and a Sigstore build-provenance
+attestation:
+
+```bash
+sha256sum -c SHA256SUMS
+gh attestation verify Wire-*.AppImage --repo nichu42/wire-desktop-linux
 ```
 
-### Test
+Gear Lever's `.zsync` check is transport integrity, not authenticity; use the
+attestation when you need to know the file was produced by this repository's
+workflow.
 
-```shell
-yarn test
+## Requirements
+
+- x86_64 Linux, glibc ≥ 2.31 (Ubuntu 22.04+, Debian 12+, Fedora 36+, Arch,
+  CachyOS, …)
+- GTK 3, libnotify (notifications), NSS
+- libsecret + a keyring (GNOME Keyring/KWallet) for encrypted cookie storage;
+  the app still runs without one, with weaker cookie protection
+- PipeWire for screen sharing on Wayland
+- An emoji font (e.g. `noto-fonts-emoji`) for colour emoji
+- No FUSE package: the electron-builder static AppImage runtime extracts
+  itself when needed
+
+## Wayland
+
+Electron 38+ already defaults to native Wayland when `XDG_SESSION_TYPE=wayland`
+(`--ozone-platform=auto`); no extra flag is needed. If your compositor or
+screen-sharing setup misbehaves, force XWayland:
+
+```bash
+./Wire-*.AppImage --ozone-platform=x11
 ```
 
-### Managed device configuration (MDM)
+Native Wayland is tested manually on KDE Plasma; the CI smoke test runs under
+Xvfb (X11) because Wayland sessions are not available on GitHub runners.
 
-On company-managed devices, an MDM administrator can force App-lock on, overriding the team-level App-lock setting. The desktop app reads a single `applockOverride` flag at startup — without spawning any shell command — and forwards it to the webapp as `window.desktopAppConfig.managedConfig`.
+## Ubuntu 24.04 / 26.04 and the Chromium sandbox
 
-The flag is read from organization-agnostic, Wire-vendor locations (no customer/company name is hardcoded):
+Ubuntu 24.04+ restricts unprivileged user namespaces by default
+(`kernel.apparmor_restrict_unprivileged_userns=1`). Chromium's user-namespace
+sandbox is then blocked, and the AppImage may fail to start.
 
-| OS | Source | Signal |
-| :-- | :-- | :-- |
-| Windows | Registry `…\SOFTWARE\Policies\Wire` (HKLM, HKCU fallback) | `applockOverride` value = `1`, **or** the device is MDM-enrolled / Azure-AD joined |
-| macOS | App's managed preferences domain (MDM AppConfig profile) | `applockOverride` boolean = `true` |
+Use the provided AppArmor profile instead of `--no-sandbox`. If you installed
+with `install.sh`, re-run the downloaded script with `--apparmor`:
 
-#### Testing locally
-
-For each OS: plant the flag, relaunch the app, then open DevTools on the webapp's `<webview>` and evaluate `window.desktopAppConfig.managedConfig` — expect `{applockOverride: true}`. With nothing planted it must be `{applockOverride: false}` and the app behaves as before.
-
-**Windows** (elevated prompt):
-
-```cmd
-reg add "HKLM\SOFTWARE\Policies\Wire" /v applockOverride /t REG_DWORD /d 1 /f
-:: relaunch app -> applockOverride === true
-reg delete "HKLM\SOFTWARE\Policies\Wire" /f
+```bash
+bash /tmp/wire-install.sh --apparmor
 ```
 
-Enrollment is detected automatically on an Intune/MDM-enrolled or Azure-AD-joined machine (no `Policies\Wire` value needed).
+With Gear Lever, apply the profile manually — running `install.sh --apparmor`
+would create a second installation. Adjust the path to your Gear Lever
+AppImage:
 
-**macOS** (use the running build's bundle id — production is `com.wearezeta.zclient.mac`; dev/internal differ):
-
-```shell
-defaults write com.wearezeta.zclient.mac applockOverride -bool true
-# relaunch app -> applockOverride === true
-defaults delete com.wearezeta.zclient.mac applockOverride
+```bash
+curl -fsSLO https://github.com/nichu42/wire-desktop-linux/releases/latest/download/apparmor.profile
+sed -i "s|@APPIMAGE_PATH@|$HOME/AppImages/wire.appimage|" apparmor.profile
+sudo install -m 644 apparmor.profile /etc/apparmor.d/wire-desktop
+sudo apparmor_parser -r /etc/apparmor.d/wire-desktop
 ```
 
-To validate the real MDM path (managed-preferences domain):
+This grants the AppImage permission to create a user namespace; it does **not**
+disable the sandbox. `--no-sandbox` disables renderer sandboxing and is a
+security regression for a messenger.
 
-```shell
-sudo defaults write "/Library/Managed Preferences/com.wearezeta.zclient.mac.plist" applockOverride -bool true
+## Troubleshooting
+
+- **No tray icon on GNOME:** install the AppIndicator extension; GNOME does not
+  ship tray support by default.
+- **`wire://` links do not open the app:** re-register the handler for the
+  desktop file you actually have — Gear Lever uses `wire.desktop`,
+  `install.sh` uses `wire-desktop.desktop`:
+
+  ```bash
+  xdg-mime default wire.desktop x-scheme-handler/wire          # Gear Lever
+  xdg-mime default wire-desktop.desktop x-scheme-handler/wire  # install.sh
+  ```
+- **Keyring prompt / no encrypted cookies:** install `gnome-keyring` or
+  `kwallet` and log in to the session keyring.
+- **Screen sharing shows the wrong content:** try the opposite of your current
+  mode (`--ozone-platform=x11` or native Wayland) and make sure PipeWire is
+  running.
+- **AppImage will not start:** run it from a terminal and check the output.
+  If execution from the mount point is blocked, use
+  `--appimage-extract-and-run`.
+- Logs: the app writes `console.log` in its user-data directory
+  (`~/.config/Wire/`). Redact personal data before sharing.
+
+## How it works
+
+```
+new upstream windows/* tag  (or Electron patch release)
+  → resolve version + newest supported Electron
+  → clone upstream at the tag
+  → apply the Linux runtime patch (best effort)
+  → yarn up Electron/electron-builder, yarn install
+  → upstream tests (xvfb-run yarn test)
+  → stamp production config, build the AppImage
+  → assert asar/fuses/desktop/update-info, direct-launch smoke test
+  → runtime smoke on the build image and Ubuntu 22.04 (older glibc)
+  → draft release, attest, verify assets, publish
 ```
 
-### Deployment
+Dependency policy: no application dependency versions are pinned here. Electron
+is resolved at build time to the newest patch of upstream's major, or to the
+oldest still-supported major if upstream's choice is EOL. Other app
+dependencies stay at the versions Wire ships; they move with each upstream tag.
+electron-builder is resolved to the latest release, with an automatic fallback
+to upstream's version if packaging fails; `@electron/fuses` follows upstream's
+`1.8.x` pin because 2.x breaks the upstream TypeScript configuration.
 
-| Stage | Branch | Action | Version |
-| :-- | :-- | :-- | :-- |
-| 1 (Feature development) | (varies) | commit | x.y+3 (e.g. 3.20) |
-| 2 (Nightly test automation) | [dev](https://github.com/wireapp/wire-desktop/tree/dev) | commit or squash merge from feature branch | x.y+2 (e.g. 3.19) |
-| 3 (Internal release) | [staging](https://github.com/wireapp/wire-desktop/tree/staging) | merge (don't squash) from [dev](https://github.com/wireapp/wire-desktop/tree/dev) | x.y+1 (e.g. 3.18) |
-| 4 (Production release) | [main](https://github.com/wireapp/wire-desktop/tree/main) | merge (don't squash) from [staging](https://github.com/wireapp/wire-desktop/tree/staging) | x.y (e.g. 3.17) |
+The release workflow is split into read-only build jobs and a write-only
+publish job; `yarn install` never sees a write token. All actions are pinned to
+commit SHAs and updated by Dependabot. Releases carry a Sigstore provenance
+attestation.
 
-**Compare Views**
+## Testing scope
 
-1. Updates from "dev" to "staging" (changelog): https://github.com/wireapp/wire-desktop/compare/staging...dev
-1. Updates from "staging" to "main" (changelog): https://github.com/wireapp/wire-desktop/compare/main...staging
+Automated on every build: workflow/script lint, upstream typecheck + unit
+tests, artifact structure (production config, version, fuses, desktop entry,
+no source maps/dev files), update-info/`.zsync` integrity, and a direct launch
+that waits for the wrapper window and for the privileged webview to reach
+`app.wire.com` on the pinned build image (currently Ubuntu 26.04) and Ubuntu
+22.04. Playwright cannot drive the packaged app because the production fuses
+disable `--inspect`; the smoke test reads the app's own log instead.
 
-### Tasks
+Not automated: login, sending messages, calls and screen sharing — these need a
+Wire test account or a test backend. They are checked manually after setup and
+after Electron-major changes.
 
-```shell
-# Build for macOS
-yarn build:macos
+## Packaging status
 
-# Build for Windows
-yarn build:win
-```
+AppImage + Gear Lever is the current packaging path. The upstream source and
+Linux runtime patch are packaging-agnostic, so Flatpak, AUR or another format
+can be added later without changing the build source.
 
-On macOS, desktop SSO uses `ASWebAuthenticationSession` through the optional `objc-js` bridge. Authentication runs in a supporting default browser, with Safari as fallback. Windows uses embedded SSO; the standalone webapp is unchanged.
+- Flathub's Wire package is archived (the app was declared EOL); a community
+  Flatpak would need its own repository and maintenance.
+- AUR packages are third-party; `wire-desktop-git` uses the internal-branded
+  configuration, and we do not maintain one.
+- AppImage + Gear Lever currently gives upstream-versioned builds, update
+  metadata and one install path across distributions.
 
-The macOS flow follows Wire iOS's existing backend contract: a validated callback returns a session cookie to the initiating account. Callback URLs and cookies must not be logged. This is not a single-use-code/PKCE exchange.
+## Development
 
-macOS packaging unpacks and signs the native bridge using the existing app-signing identity. Browser SSO does not require the former WebAuthn keychain-group entitlement or additional provisioning-profile credentials. Both Jenkins jobs use the configured `node-v23.0.0` tool for the upgraded Electron runtime.
+This is an AI-assisted project: the code, workflows and documentation were
+developed with AI assistance and are reviewed by the maintainer. The release
+pipeline itself is deterministic GitHub Actions from upstream source; no AI
+runs at build or release time.
 
-Windows embedded SSO windows support website `window.prompt()` requests through a local text dialog. This covers passkey labels requested by Keycloak and other providers using the same browser API, without changing the identity provider's theme. The dialog shows the requesting origin, returns entered text on OK and `null` on cancellation, and closes when the requesting page navigates or closes. Prompt messages and entered values are not logged. This addresses prompt compatibility; each provider's complete login flow still needs testing.
+See [AGENTS.md](AGENTS.md) for the CI-equivalent local build sequence and
+prerequisites; the release workflow is the reference implementation.
 
-On Windows, SSO opens in an independent window using the shared persistent `persist:wire-sso` session. The backend completion callback is checked against the expected origin before copying its Wire login cookie into the requesting account. SSO website storage is cleared on close and before a new login, while passkey session preferences remain. Removing one sub-app/account does not remove this shared session. Reuse requires the same identity-provider account and relying-party ID; unrelated providers still need separate credentials. Deleting the entire desktop user-data directory or the credential in Keycloak is different. In a signed build, test registration, restart, account removal/re-addition, and login from another sub-app.
+## Disclaimer
 
-Desktop logs are enabled automatically and written to `logs/YYYY-MM-DD/electron.log` inside Electron's user-data directory. To test authentication, search for `[Passkeys]`. For macOS browser SSO, search for `[SSO]` to follow session startup, callback validation failures, and cookie installation. Browser authentication does not use the embedded account picker. On Windows, account-picker logs show embedded WebAuthn requests, selection, cancellation, or failure without account names or credential IDs. An account-selection event only occurs when the authenticator needs a choice: its absence does not prove WebAuthn failed. Complete login against the intended identity provider to verify the result. Build checks do not establish authenticator compatibility; test the signed app against the intended IdP.
+These builds receive no formal QA from Wire or from the maintainer and are
+provided **as-is, without warranty of any kind**, to the extent permitted by
+law. Use them at your own risk. The maintainer accepts no liability for data
+loss, account or service issues, or any other damages arising from their use.
+The GPL-3.0 license's warranty and liability provisions apply.
 
-For a package that needs unpacked files, you can disable [asar packaging](https://www.electronjs.org/docs/latest/tutorial/application-distribution/) (not recommended) by setting `ENABLE_ASAR="false"` before building.
+## License
 
-```shell
-export ENABLE_ASAR="false"
-yarn build:macos # or yarn build:win
-```
-
-### Troubleshooting
-
-If you are having troubles building Wire for Desktop, then [our troubleshooting page](https://github.com/wireapp/wire-desktop/wiki/Troubleshooting) might be of help.
-
-### Translations
-
-All Wire translations are crowdsourced via [Crowdin](https://crowdin.com/projects/wire).
+GPL-3.0-only, matching upstream. Source: the upstream tag recorded in each
+release, plus `patches/` and `tools/` in this repository.

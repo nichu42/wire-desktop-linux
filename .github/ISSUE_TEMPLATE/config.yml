@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Wire application bug
+    url: https://github.com/wireapp/wire-desktop/issues
+    about: Report bugs in the Wire client itself to the upstream project.
+  - name: Security report
+    url: https://github.com/nichu42/wire-desktop-linux/security/advisories/new
+    about: Report a build, packaging or supply-chain vulnerability privately.

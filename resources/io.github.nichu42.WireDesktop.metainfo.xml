@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<component type="desktop-application">
+  <id>io.github.nichu42.WireDesktop</id>
+  <name>Wire</name>
+  <summary>Unofficial Linux AppImage builds of Wire Desktop</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <description>
+    <p>
+      Unofficial community AppImage builds of the Wire desktop client for Linux,
+      rebuilt from Wire's open-source repository after upstream stopped
+      publishing Linux binaries.
+    </p>
+    <p>
+      This build is not affiliated with or endorsed by Wire Swiss GmbH. Wire is
+      a trademark of Wire Swiss GmbH.
+    </p>
+  </description>
+  <launchable type="desktop-id">wire-desktop.desktop</launchable>
+  <url type="homepage">https://github.com/nichu42/wire-desktop-linux</url>
+  <developer id="io.github.nichu42">
+    <name>nichu42</name>
+  </developer>
+  <categories>
+    <category>Network</category>
+    <category>InstantMessaging</category>
+    <category>Chat</category>
+    <category>VideoConference</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="@VERSION@" date="@DATE@"/>
+  </releases>
+</component>

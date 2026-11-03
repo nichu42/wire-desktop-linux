@@ -1,0 +1,94 @@
+name: Runner freshness
+
+on:
+  schedule:
+    # Weekly: GitHub rolls out runner image migrations over several weeks.
+    - cron: '41 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check ubuntu-latest and dispatch canary
+    # Deliberately ubuntu-latest: this job exists to observe the moving alias.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      actions: write
+    steps:
+      - name: Read the current runner release
+        id: os
+        run: echo "version=$(. /etc/os-release && echo "$VERSION_ID")" >> "$GITHUB_OUTPUT"
+
+      - name: Compare with the pinned build runner
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          CURRENT: ${{ steps.os.outputs.version }}
+          # Must match the `runner` input default in build-linux.yml.
+          PINNED: '26.04'
+        run: |
+          set -euo pipefail
+
+          gh label create runner-freshness \
+            --color 0E8A16 \
+            --description "Runner image needs updating" >/dev/null 2>&1 || true
+
+          if [ "$CURRENT" = "$PINNED" ]; then
+            echo "ubuntu-latest is still Ubuntu $PINNED; nothing to do."
+            gh issue list --label runner-freshness --state open --json number --jq '.[].number' \
+              | while read -r number; do
+                  gh issue close "$number" \
+                    --comment "Pinned build runner matches ubuntu-latest ($PINNED)."
+                done
+            exit 0
+          fi
+
+          # A pinned build image newer than ubuntu-latest is fine: we are
+          # deliberately ahead of the moving alias during a migration.
+          if dpkg --compare-versions "$CURRENT" lt "$PINNED"; then
+            echo "Pinned build runner $PINNED is ahead of ubuntu-latest $CURRENT; nothing to do."
+            exit 0
+          fi
+
+          title="Runner image moved to Ubuntu $CURRENT"
+          existing=$(gh issue list --label runner-freshness --state open --json number,title \
+            | jq -r --arg title "$title" '.[] | select(.title == $title) | .number' | head -1)
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" \
+              --body "Still on Ubuntu $CURRENT; the canary was already dispatched for this image."
+            exit 0
+          fi
+
+          body=$(cat <<EOF
+          \`ubuntu-latest\` is now Ubuntu **$CURRENT**, but the release build is
+          pinned to **$PINNED**.
+
+          A canary build on \`ubuntu-latest\` has been dispatched with
+          \`publish=false\`: it runs the upstream test suite, packaging,
+          artifact assertions and smoke tests without creating a release.
+          Check the [Actions](https://github.com/$GH_REPO/actions/workflows/build-linux.yml)
+          page for the run.
+
+          When the canary is green, update the pinned runner:
+
+          - \`.github/workflows/build-linux.yml\` — \`runner\` input default and
+            the fixed \`runs-on\` entries (keep \`ubuntu-22.04\` for \`smoke-2204\`)
+          - \`.github/workflows/lint.yml\`
+          - \`.github/workflows/scorecard.yml\`
+          - \`.github/workflows/keepalive.yml\`
+          - \`PINNED\` in this workflow
+
+          Also check whether \`ubuntu-22.04\` is still available for the
+          compatibility smoke job; replace it with the oldest supported image
+          or a pinned container if it has been retired.
+          EOF
+          )
+
+          gh issue create --title "$title" --body "$body" --label runner-freshness
+          gh workflow run build-linux.yml \
+            -f runner=ubuntu-latest \
+            -f publish=false

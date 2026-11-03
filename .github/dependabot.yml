@@ -1,34 +1,9 @@
-# Renovate is the only dependency-update automation used by this repository.
-#
-# `open-pull-requests-limit: 0` disables Dependabot version-update pull
-# requests. The wildcard ignore rule is also required because security-update
-# pull requests are not subject to that limit.
-
 version: 2
-
 updates:
-  - package-ecosystem: 'npm'
-    directories:
-      - '**/*'
+  - package-ecosystem: github-actions
+    directory: /
     schedule:
-      interval: 'monthly'
-    open-pull-requests-limit: 0
-    ignore:
-      - dependency-name: '*'
-
-  - package-ecosystem: 'github-actions'
-    directory: '/'
-    schedule:
-      interval: 'monthly'
-    open-pull-requests-limit: 0
-    ignore:
-      - dependency-name: '*'
-
-  - package-ecosystem: 'docker'
-    directories:
-      - '**/*'
-    schedule:
-      interval: 'monthly'
-    open-pull-requests-limit: 0
-    ignore:
-      - dependency-name: '*'
+      interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5

@@ -2,32 +2,49 @@ name: Lint
 
 on:
   push:
-    branches: [main, staging, dev]
-  pull_request:
-    branches: [main, staging, dev]
-  merge_group:
-    branches: [main, staging, dev]
+    branches: [linux]
+  workflow_dispatch:
 
-concurrency:
-  group: lint-${{ github.ref }}
-  cancel-in-progress: true
+permissions:
+  contents: read
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-24.04
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version-file: '.node-version'
-          cache: 'yarn'
+          persist-credentials: false
 
-      - name: Install JS dependencies
-        run: yarn --immutable
+      - name: actionlint
+        uses: reviewdog/action-actionlint@619a81ec64ff8c0211cd6146eb2b21e8f1d7f440 # v1.81.1
+        with:
+          github_token: ${{ github.token }}
+          reporter: local
+          filter_mode: nofilter
+          level: error
+          fail_level: error
 
-      - name: Lint
-        run: yarn lint
+      - name: zizmor
+        uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
+        with:
+          advanced-security: false
+          inputs: |
+            .github/workflows/build-linux.yml
+            .github/workflows/lint.yml
+            .github/workflows/scorecard.yml
+            .github/workflows/keepalive.yml
+            .github/workflows/runner-freshness.yml
+            .github/dependabot.yml
+
+      - name: ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends shellcheck
+          shellcheck install.sh tools/release-notes.sh tools/smoke-test.sh
+
+      - name: Node syntax
+        run: |
+          for file in tools/*.mjs; do
+            node --check "$file"
+          done

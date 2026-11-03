@@ -22,9 +22,11 @@ Wire*.zip
 .env.defaults
 electron/img/
 !electron/img/taskbar.overlay.png
-resources
+resources/*
 !resources/macos/entitlements/child.plist
 !resources/macos/entitlements/parent.plist
+!resources/apparmor.profile
+!resources/io.github.nichu42.WireDesktop.metainfo.xml
 
 # yarn 2 - not using zero-installs
 .pnp.*
