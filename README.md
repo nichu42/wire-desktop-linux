@@ -116,6 +116,18 @@ screen-sharing setup misbehaves, force XWayland:
 Native Wayland is tested manually on KDE Plasma; the CI smoke test runs under
 Xvfb (X11) because Wayland sessions are not available on GitHub runners.
 
+## Startup behaviour
+
+The app shows its main window on launch by default. To start it in the tray
+instead, enable **Wire → Start Hidden in Tray** in the menu, or set
+`"startHidden": true` in `~/.config/Wire/config/init.json`. The change takes
+effect on the next launch.
+
+A `wire://` link still opens the window, and **Launch Wire On Startup**
+already passes `--hidden`, so autostart starts in the tray. You can also pass
+`--hidden` or `--startup` on the command line to start in the tray for a
+single run.
+
 ## Ubuntu 24.04 / 26.04 and the Chromium sandbox
 
 Ubuntu 24.04+ restricts unprivileged user namespaces by default
@@ -147,7 +159,8 @@ security regression for a messenger.
 ## Troubleshooting
 
 - **No tray icon on GNOME:** install the AppIndicator extension; GNOME does not
-  ship tray support by default.
+  ship tray support by default. If you enabled **Start Hidden in Tray** without
+  a working tray, launch the app again from the menu to show the window.
 - **`wire://` links do not open the app:** re-register the handler for the
   desktop file you actually have — Gear Lever uses `wire.desktop`,
   `install.sh` uses `wire-desktop.desktop`:

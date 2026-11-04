@@ -1,8 +1,72 @@
+diff --git a/electron/src/locale/en-US.json b/electron/src/locale/en-US.json
+index 0c28fb0c..1f53831e 100644
+--- a/electron/src/locale/en-US.json
++++ b/electron/src/locale/en-US.json
+@@ -64,6 +64,7 @@
+   "menuSignOut": "Log Out",
+   "menuSearch": "Search Conversations",
+   "menuStart": "Create Group",
++  "menuStartHidden": "Start Hidden in Tray",
+   "menuStartup": "Launch {brandName} On Startup",
+   "menuSupport": "Support Website",
+   "menuSwitchAccount": "Switch to Account {accountIndex}",
 diff --git a/electron/src/mainProcess.ts b/electron/src/mainProcess.ts
-index 27c72cec..b780c747 100644
+index 27c72cec..8cbb14db 100644
 --- a/electron/src/mainProcess.ts
 +++ b/electron/src/mainProcess.ts
-@@ -836,6 +836,21 @@ const handleAppEvents = (): void => {
+@@ -140,7 +140,12 @@ const argv = minimist(process.argv.slice(1));
+ const fileBasedProxyConfig = settings.restore<string | undefined>(SettingsType.PROXY_SERVER_URL);
+ 
+ const currentLocale = locale.getCurrent();
+-const startHidden = Boolean(argv[config.ARGUMENT.STARTUP] || argv[config.ARGUMENT.HIDDEN]);
++const hasDeepLink = process.argv.some(argument => argument.startsWith(`${config.customProtocolName}://`));
++const startHidden = Boolean(
++  argv[config.ARGUMENT.STARTUP] ||
++    argv[config.ARGUMENT.HIDDEN] ||
++    (settings.restore(SettingsType.START_HIDDEN, false) && !hasDeepLink),
++);
+ const customDownloadPath = settings.restore<string | undefined>(SettingsType.DOWNLOAD_PATH);
+ const appHomePath = (path: string) => `${app.getPath('home')}\\${path}`;
+ const isInternalBuild = (): boolean => config.environment === 'internal';
+@@ -626,9 +631,20 @@ const showMainWindow = async (mainWindowState: windowStateKeeper.State): Promise
+ 
+   main.setMenuBarVisibility(showMenuBar);
+ 
+-  mainWindowState.manage(main);
++  const restoreWindowState = (): void => {
++    mainWindowState.manage(main);
++    checkConfigV0FullScreen(mainWindowState);
++  };
++
++  if (startHidden) {
++    // Restoring a maximized/fullscreen window makes Electron show it, so wait
++    // until the user actually opens it from the tray.
++    main.once('show', restoreWindowState);
++  } else {
++    restoreWindowState();
++  }
++
+   attachCertificateVerifyProcManagerTo(main);
+-  checkConfigV0FullScreen(mainWindowState);
+ 
+   if (typeof argv[config.ARGUMENT.DEVTOOLS] !== 'undefined') {
+     openDevTools(argv[config.ARGUMENT.DEVTOOLS]).catch(() =>
+@@ -636,12 +652,13 @@ const showMainWindow = async (mainWindowState: windowStateKeeper.State): Promise
+     );
+   }
+ 
++  WindowManager.setPrimaryWindowId(main.id);
++
+   if (!startHidden) {
+     if (!WindowUtil.isInView(main)) {
+       main.center();
+     }
+ 
+-    WindowManager.setPrimaryWindowId(main.id);
+     setTimeout(() => main.show(), 800);
+   }
+ 
+@@ -836,6 +853,21 @@ const handleAppEvents = (): void => {
    });
  };
  
@@ -24,7 +88,7 @@ index 27c72cec..b780c747 100644
  const handlePortableFlags = (): void => {
    configuredUserDataPath.match({
      Just: logConfiguredUserDataPath,
-@@ -1160,6 +1175,7 @@ lifecycle.addRelaunchListeners(async () => {
+@@ -1160,6 +1192,7 @@ lifecycle.addRelaunchListeners(async () => {
  
  // Stop further execution on update to prevent second tray icon
  if (lifecycle.isFirstInstance) {
@@ -239,7 +303,7 @@ index 04156e07..b619f1a4 100644
  
  function collectMenuAccelerators(menuItems: MenuItemConstructorOptions[]): string[] {
 diff --git a/electron/src/menu/system.ts b/electron/src/menu/system.ts
-index 8f84ca93..13c16e0f 100644
+index 8f84ca93..c73d451b 100644
 --- a/electron/src/menu/system.ts
 +++ b/electron/src/menu/system.ts
 @@ -36,12 +36,14 @@ import {SettingsType} from '../settings/SettingsType';
@@ -258,7 +322,25 @@ index 8f84ca93..13c16e0f 100644
  });
  
  const separatorTemplate: MenuItemConstructorOptions = {
-@@ -355,6 +357,24 @@ const win32Template: MenuItemConstructorOptions = {
+@@ -181,6 +183,17 @@ const toggleAutoLaunchTemplate: MenuItemConstructorOptions = {
+   type: 'checkbox',
+ };
+ 
++const toggleStartHiddenTemplate: MenuItemConstructorOptions = {
++  checked: settings.restore(SettingsType.START_HIDDEN, false),
++  click: () => {
++    const startHidden = !settings.restore(SettingsType.START_HIDDEN, false);
++    settings.save(SettingsType.START_HIDDEN, startHidden);
++    settings.persistToFile();
++  },
++  label: locale.getText('menuStartHidden'),
++  type: 'checkbox',
++};
++
+ const editTemplate: MenuItemConstructorOptions = {
+   label: `&${locale.getText('menuEdit')}`,
+   submenu: [
+@@ -355,6 +368,25 @@ const win32Template: MenuItemConstructorOptions = {
    ],
  };
  
@@ -266,6 +348,7 @@ index 8f84ca93..13c16e0f 100644
 +  label: `&${config.name}`,
 +  submenu: [
 +    toggleAutoLaunchTemplate,
++    toggleStartHiddenTemplate,
 +    separatorTemplate,
 +    localeTemplate,
 +    separatorTemplate,
@@ -283,7 +366,7 @@ index 8f84ca93..13c16e0f 100644
  const processMenu = (template: Iterable<MenuItemConstructorOptions>, language: locale.SupportedI18nLanguage): void => {
    for (const item of template) {
      if (item.submenu) {
-@@ -407,6 +427,48 @@ export function createMenu(isFullScreen: boolean, wallClock: WallClock): Menu {
+@@ -407,6 +439,48 @@ export function createMenu(isFullScreen: boolean, wallClock: WallClock): Menu {
      }
    }
  
@@ -332,7 +415,7 @@ index 8f84ca93..13c16e0f 100644
    if (!EnvironmentUtil.platform.IS_MAC_OS) {
      if (Array.isArray(helpTemplate.submenu)) {
        helpTemplate.submenu.push(separatorTemplate, aboutTemplate);
-@@ -435,24 +497,28 @@ export const toggleSpellChecking = async (): Promise<void> => {
+@@ -435,24 +509,28 @@ export const toggleSpellChecking = async (): Promise<void> => {
  };
  
  export const registerGlobalShortcuts = (): void => {
@@ -487,3 +570,16 @@ index e7ecf338..bcc35af2 100644
    }
  
    return Maybe.nothing<string>();
+diff --git a/electron/src/settings/SettingsType.ts b/electron/src/settings/SettingsType.ts
+index 3aecfd32..93b29a62 100644
+--- a/electron/src/settings/SettingsType.ts
++++ b/electron/src/settings/SettingsType.ts
+@@ -58,6 +58,8 @@ export enum SettingsType {
+   TRUSTED_WEBAPP_ORIGINS = 'trustedWebappOrigins',
+   /** Show menu bar for desktop application? */
+   SHOW_MENU_BAR = 'showMenu',
++  /** Start Wire hidden in the tray instead of showing the main window? */
++  START_HIDDEN = 'startHidden',
+   /** At which part of the screen shall the app be initially rendered? */
+   WINDOW_BOUNDS = 'bounds',
+ }

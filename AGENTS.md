@@ -202,6 +202,10 @@ Gear Lever; do not use both for the same install.
   `git apply --3way --check` against a clean tag checkout.
 - **Patch/types fail after an upstream change**: fix the patch, not the tests;
   keep the restored `IS_LINUX` platform field and `appImagePath` test data.
+- **Startup hidden**: the Linux menu's `Start Hidden in Tray` toggle stores
+  `startHidden` in `init.json`; `--hidden`/`--startup` still force it. Defer
+  `electron-window-state` restore until the first `show`, because `maximize()`
+  on a hidden window makes Electron show it.
 - **Runner migration**: update the `runner` default and fixed `runs-on`
   entries, update `PINNED`, run a canary on the new image, then push. The
   weekly check will flag the next migration.
