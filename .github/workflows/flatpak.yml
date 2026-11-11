@@ -1,0 +1,399 @@
+name: Build Flatpak repository
+
+on:
+  schedule:
+    - cron: '37 6 * * *'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Upstream tag (e.g. windows/3.46.5382); empty = latest'
+        required: false
+        type: string
+      force:
+        description: 'Rebuild even when the published Flatpak matches'
+        required: false
+        default: false
+        type: boolean
+      publish:
+        description: 'Publish the signed repository to GitHub Pages'
+        required: false
+        default: true
+        type: boolean
+  push:
+    branches: [linux]
+    paths:
+      - 'flatpak/**'
+      - 'patches/**'
+      - 'tools/flatpak-*'
+      - 'tools/assert-flatpak.mjs'
+      - 'tools/smoke-test-flatpak.sh'
+      - '.github/workflows/flatpak.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flatpak
+  cancel-in-progress: false
+
+env:
+  APP_ID: io.github.nichu42.wire-desktop-linux
+  RUNTIME_VERSION: '26.08'
+  PAGES_URL: https://nichu42.github.io/wire-desktop-linux/flatpak
+
+jobs:
+  resolve:
+    name: Resolve version and published Flatpak
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.r.outputs.tag }}
+      version: ${{ steps.r.outputs.version }}
+      build: ${{ steps.r.outputs.build }}
+      fingerprint: ${{ steps.r.outputs.fingerprint }}
+      skip: ${{ steps.r.outputs.skip }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Resolve tag and compare with the published repository
+        id: r
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.tag }}
+          FORCE: ${{ inputs.force || 'false' }}
+        run: |
+          set -euo pipefail
+
+          tag="${INPUT_TAG:-}"
+          if [ -z "$tag" ]; then
+            tag=$(gh api "repos/wireapp/wire-desktop/releases?per_page=50" \
+              --jq '[.[] | select(.tag_name | startswith("windows/"))][0].tag_name')
+          fi
+          if ! [[ "$tag" =~ ^windows/([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "Invalid upstream tag: $tag" >&2
+            exit 1
+          fi
+          version="${BASH_REMATCH[1]}"
+          build="${version##*.}"
+
+          fingerprint=$(
+            {
+              printf 'app_id=%s\nruntime=%s\nnode=%s\n' \
+                "$APP_ID" "$RUNTIME_VERSION" "${NODE_VERSION:-22}"
+              find flatpak patches tools .github/workflows/flatpak.yml -type f \
+                ! -path 'flatpak/io.github.nichu42.wire-desktop-linux.yml' \
+                ! -name 'generated-sources.json' \
+                ! -name 'prepared.json' \
+                ! -path 'flatpak/build/*' \
+                ! -path 'flatpak/repo/*' \
+                ! -path 'flatpak/test-repo/*' \
+                ! -path 'flatpak/dist/*' \
+                ! -name '*.log' \
+                ! -name '*.exit' \
+                -print0 |
+                sort -z |
+                xargs -0 sha256sum
+            } | sha256sum | cut -d' ' -f1
+          )
+
+          skip=false
+          published=$(curl -fsSL "$PAGES_URL/build-info.json" 2>/dev/null || true)
+          if [ -n "$published" ] && [ "$FORCE" != "true" ]; then
+            published_tag=$(jq -r '.upstream_tag // empty' <<<"$published" 2>/dev/null || true)
+            published_fingerprint=$(jq -r '.flatpak_fingerprint // empty' <<<"$published" 2>/dev/null || true)
+            if [ "$published_tag" = "$tag" ] && [ "$published_fingerprint" = "$fingerprint" ]; then
+              skip=true
+            fi
+          fi
+
+          {
+            echo "tag=$tag"
+            echo "version=$version"
+            echo "build=$build"
+            echo "fingerprint=$fingerprint"
+            echo "skip=$skip"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Flatpak resolve"
+            echo "- Upstream: \`$tag\`"
+            echo "- Version: \`$version\`"
+            echo "- Fingerprint: \`$fingerprint\`"
+            echo "- Skip: \`$skip\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    name: Build and smoke-test Flatpak
+    needs: resolve
+    if: needs.resolve.outputs.skip != 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    timeout-minutes: 120
+    env:
+      TAG: ${{ needs.resolve.outputs.tag }}
+      VERSION: ${{ needs.resolve.outputs.version }}
+      BUILD: ${{ needs.resolve.outputs.build }}
+      FINGERPRINT: ${{ needs.resolve.outputs.fingerprint }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            flatpak flatpak-builder xvfb x11-utils dbus-x11 gnupg jq curl xz-utils \
+            python3-pip pipx desktop-file-utils
+          flatpak remote-add --user --if-not-exists flathub \
+            https://dl.flathub.org/repo/flathub.flatpakrepo
+          pipx install "git+https://github.com/flatpak/flatpak-builder-tools.git@9d86d336a39b9af38b86f114b6ce5820fe260f91#subdirectory=node"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+
+      - name: Prepare offline sources and manifest
+        run: tools/flatpak-prepare.sh "$TAG"
+
+      - name: Build Flatpak
+        run: |
+          set -euo pipefail
+          # flatpak-builder looks up runtimes with the system installation even
+          # with --user; point that lookup at the user installation it uses.
+          export FLATPAK_SYSTEM_DIR="$HOME/.local/share/flatpak"
+          flatpak-builder --user --install-deps-from=flathub \
+            --force-clean --disable-rofiles-fuse \
+            flatpak/build "flatpak/$APP_ID.yml"
+
+      - name: Create a test-signed repository and install it
+        run: |
+          set -euo pipefail
+          export GNUPGHOME="$(mktemp -d)"
+          gpg --batch --passphrase '' --quick-generate-key \
+            "Wire Flatpak Test <flatpak-test@example.invalid>" ed25519 sign 1d
+          key_id="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/ {print $5; exit}')"
+          bash tools/flatpak-repo.sh flatpak/build flatpak/test-repo "$APP_ID" "$VERSION" \
+            "$key_id" "$GNUPGHOME" flatpak/dist
+
+          flatpak remote-add --user --if-not-exists \
+            --gpg-import="$PWD/flatpak/dist/wire-desktop.gpg" wire-test \
+            "file://$PWD/flatpak/test-repo"
+          flatpak install --user -y --noninteractive wire-test "$APP_ID"
+          xvfb-run -a bash tools/smoke-test-flatpak.sh "$APP_ID"
+
+      - name: Lint manifest and appstream
+        run: |
+          set -euo pipefail
+          flatpak install --user --noninteractive -y flathub org.flatpak.Builder
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
+            manifest "flatpak/$APP_ID.yml"
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
+            appstream "flatpak/build/files/share/metainfo/$APP_ID.metainfo.xml"
+          desktop-file-validate "flatpak/$APP_ID.desktop"
+
+      - name: Create build artifacts
+        run: |
+          set -euo pipefail
+          tar -C flatpak/build -cJf flatpak/dist/builddir.tar.xz files metadata
+          cp "flatpak/$APP_ID.yml" flatpak/dist/
+          cp flatpak/generated-sources.json flatpak/dist/
+          cp flatpak/prepared.json flatpak/dist/
+          bundle="flatpak/dist/Wire-${VERSION}-x86_64.flatpak"
+          bundle_sha256="$(sha256sum "$bundle" | cut -d' ' -f1)"
+          jq -n \
+            --slurpfile prepared flatpak/prepared.json \
+            --arg fingerprint "$FINGERPRINT" \
+            --arg bundle_sha256 "$bundle_sha256" \
+            --arg built_at "$(date -u +%FT%TZ)" \
+            --arg run_id "${{ github.run_id }}" \
+            '$prepared[0] + {
+              flatpak_fingerprint: $fingerprint,
+              bundle_sha256: $bundle_sha256,
+              built_at: $built_at,
+              run_id: $run_id
+            }' > flatpak/dist/build-info.json
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: flatpak-build
+          if-no-files-found: error
+          retention-days: 2
+          path: flatpak/dist
+
+  publish:
+    name: Sign and publish Flatpak repository
+    needs: [resolve, build]
+    if: |
+      needs.resolve.outputs.skip != 'true' &&
+      (github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_dispatch' && inputs.publish != false))
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+      attestations: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      TAG: ${{ needs.resolve.outputs.tag }}
+      VERSION: ${{ needs.resolve.outputs.version }}
+      FINGERPRINT: ${{ needs.resolve.outputs.fingerprint }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            flatpak xvfb x11-utils dbus-x11 gnupg jq curl xz-utils
+          flatpak remote-add --user --if-not-exists flathub \
+            https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user --noninteractive -y flathub \
+            org.freedesktop.Platform//"$RUNTIME_VERSION" \
+            org.electronjs.Electron2.BaseApp//"$RUNTIME_VERSION"
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: flatpak-build
+          path: flatpak/dist
+
+      - name: Import the Flatpak signing key
+        env:
+          FLATPAK_GPG_PRIVATE_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
+          FLATPAK_GPG_KEY_ID: ${{ secrets.FLATPAK_GPG_KEY_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${FLATPAK_GPG_PRIVATE_KEY:-}" ]; then
+            echo "::error::FLATPAK_GPG_PRIVATE_KEY is not configured"
+            exit 1
+          fi
+          export GNUPGHOME="$RUNNER_TEMP/gnupg"
+          install -d -m 700 "$GNUPGHOME"
+          base64 -d <<<"$FLATPAK_GPG_PRIVATE_KEY" | gpg --batch --import
+          key_id="${FLATPAK_GPG_KEY_ID:-$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/ {print $5; exit}')}"
+          if [ -z "$key_id" ]; then
+            echo "::error::No secret key found in FLATPAK_GPG_PRIVATE_KEY"
+            exit 1
+          fi
+          echo "FLATPAK_GPG_HOME=$GNUPGHOME" >> "$GITHUB_ENV"
+          echo "FLATPAK_GPG_KEY_ID=$key_id" >> "$GITHUB_ENV"
+
+      - name: Export and sign the repository
+        run: |
+          set -euo pipefail
+          mkdir -p flatpak/build
+          tar -xJf flatpak/dist/builddir.tar.xz -C flatpak/build
+          bash tools/flatpak-repo.sh flatpak/build flatpak/repo "$APP_ID" "$VERSION" \
+            "$FLATPAK_GPG_KEY_ID" "$FLATPAK_GPG_HOME" flatpak/dist
+
+      - name: Install the signed repository and smoke-test it
+        run: |
+          set -euo pipefail
+          flatpak remote-add --user --if-not-exists \
+            --gpg-import="$PWD/flatpak/dist/wire-desktop.gpg" wire-publish \
+            "file://$PWD/flatpak/repo"
+          flatpak install --user -y --noninteractive wire-publish "$APP_ID"
+          xvfb-run -a bash tools/smoke-test-flatpak.sh "$APP_ID"
+
+      - name: Attest the Flatpak bundle
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: flatpak/dist/Wire-*-x86_64.flatpak
+
+      - name: Assemble the Pages repository
+        run: |
+          set -euo pipefail
+          mkdir -p public/flatpak
+          cp -a flatpak/repo public/flatpak/repo
+          cp flatpak/dist/wire-desktop.gpg public/flatpak/
+          cp flatpak/dist/Wire-*-x86_64.flatpak public/flatpak/
+          cp flatpak/dist/build-info.json public/flatpak/
+          cp flatpak/dist/io.github.nichu42.wire-desktop-linux.yml public/flatpak/
+          cp flatpak/dist/generated-sources.json public/flatpak/
+          touch public/.nojekyll
+
+          gpg_key="$(gpg --homedir "$FLATPAK_GPG_HOME" --export "$FLATPAK_GPG_KEY_ID" | base64 -w0)"
+          cat > public/flatpak/wire.flatpakrepo <<EOF
+          [Flatpak Repo]
+          Title=Wire Desktop (unofficial)
+          Url=$PAGES_URL/repo/
+          Homepage=https://github.com/nichu42/wire-desktop-linux
+          Comment=Unofficial Flatpak builds of Wire Desktop
+          RuntimeRepo=https://dl.flathub.org/repo/flathub.flatpakrepo
+          DefaultBranch=stable
+          GPGKey=$gpg_key
+          EOF
+
+          cat > public/flatpak/index.html <<'EOF'
+          <!doctype html>
+          <html lang="en">
+          <meta charset="utf-8">
+          <title>Wire Desktop Flatpak (unofficial)</title>
+          <h1>Wire Desktop Flatpak (unofficial)</h1>
+          <p>This is not affiliated with or endorsed by Wire Swiss GmbH.</p>
+          <pre>flatpak remote-add --if-not-exists --user wire \
+            https://nichu42.github.io/wire-desktop-linux/flatpak/wire.flatpakrepo
+          flatpak install --user wire io.github.nichu42.wire-desktop-linux</pre>
+          <p>Verify the signing key fingerprint before installing.</p>
+          </html>
+          EOF
+
+          bundle_sha256="$(sha256sum flatpak/dist/Wire-*-x86_64.flatpak | cut -d' ' -f1)"
+          jq \
+            --arg gpg "$(gpg --homedir "$FLATPAK_GPG_HOME" --with-colons --fingerprint "$FLATPAK_GPG_KEY_ID" | awk -F: '/^fpr:/ {print $10; exit}')" \
+            --arg bundle_sha256 "$bundle_sha256" \
+            '. + {gpg_key_fingerprint: $gpg, bundle_sha256: $bundle_sha256}' \
+            flatpak/dist/build-info.json > public/flatpak/build-info.json
+
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: public
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+  report-failure:
+    name: Report Flatpak build failure
+    needs: [resolve, build, publish]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.resolve.outputs.tag || 'unknown' }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Open or update a deduplicated issue
+        run: |
+          set -euo pipefail
+          gh label create flatpak-failure \
+            --color B60205 \
+            --description "Scheduled Flatpak build failure" >/dev/null 2>&1 || true
+          title="Flatpak build failure: $TAG"
+          body=$(cat <<EOF
+          The scheduled Flatpak build failed.
+
+          - Run: $RUN_URL
+          - Upstream tag: $TAG
+          EOF
+          )
+          existing=$(gh issue list --label flatpak-failure --state open --json number,title \
+            | jq -r --arg title "$title" '.[] | select(.title == $title) | .number' | head -1)
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body" --label flatpak-failure
+          fi

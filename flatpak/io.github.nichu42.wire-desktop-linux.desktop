@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Wire
+GenericName=Secure messenger
+Comment=Unofficial Flatpak build of Wire Desktop
+Exec=wire-desktop-flatpak %U
+Icon=io.github.nichu42.wire-desktop-linux
+Terminal=false
+Categories=Network;InstantMessaging;Chat;VideoConference;
+Keywords=chat;encrypt;e2e;messenger;videocall;
+MimeType=x-scheme-handler/wire;
+StartupWMClass=Wire
+Version=1.1

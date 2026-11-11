@@ -31,6 +31,7 @@ jobs:
           advanced-security: false
           inputs: |
             .github/workflows/build-linux.yml
+            .github/workflows/flatpak.yml
             .github/workflows/lint.yml
             .github/workflows/scorecard.yml
             .github/workflows/keepalive.yml
@@ -41,10 +42,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends shellcheck
-          shellcheck install.sh tools/release-notes.sh tools/smoke-test.sh
+          shellcheck install.sh tools/release-notes.sh tools/smoke-test.sh \
+            tools/flatpak-prepare.sh tools/flatpak-repo.sh tools/flatpak-keygen.sh \
+            tools/smoke-test-flatpak.sh flatpak/wire-desktop-flatpak.sh
 
       - name: Node syntax
         run: |
           for file in tools/*.mjs; do
             node --check "$file"
           done
+          node --check flatpak/electron-builder.config.cjs

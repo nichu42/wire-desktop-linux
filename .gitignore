@@ -17,6 +17,20 @@ coverage
 app.asar
 node_modules
 Wire*.zip
+Wire*.flatpak
+
+# Flatpak build inputs/outputs
+/flatpak/*.yml
+/.flatpak-builder/
+/flatpak/generated-sources.json
+/flatpak/prepared.json
+/flatpak/build/
+/flatpak/repo/
+/flatpak/test-repo/
+/flatpak/dist/
+/flatpak/wire-desktop.gpg
+/flatpak/config.tar.gz
+/flatpak/*.exit
 
 # Configuration imported from https://github.com/wireapp/wire-web-config-wire/
 .env.defaults

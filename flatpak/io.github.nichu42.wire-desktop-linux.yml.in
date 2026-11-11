@@ -1,0 +1,148 @@
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# Flatpak manifest template for the unofficial Wire Desktop Linux build.
+# Render it with `node tools/flatpak-render-manifest.mjs` (or
+# `tools/flatpak-prepare.sh`), then build with flatpak-builder.
+#
+# The rendered file is intentionally not committed: the release workflow fills
+# in the current upstream tag/commit, Electron version and config checksum.
+
+id: io.github.nichu42.wire-desktop-linux
+runtime: org.freedesktop.Platform
+runtime-version: '@RUNTIME_VERSION@'
+sdk: org.freedesktop.Sdk
+base: org.electronjs.Electron2.BaseApp
+base-version: '@BASE_VERSION@'
+command: wire-desktop-flatpak
+separate-locales: false
+
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.node@NODE_VERSION@
+
+finish-args:
+  # Network access for the Wire service.
+  - --share=network
+  # X11/Wayland, shared memory and audio.
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --socket=pulseaudio
+  # GPU acceleration. Camera access uses the XDG camera portal; the wrapper
+  # enables WebRtcPipeWireCamera. No direct /dev/video* access is granted.
+  # The microphone uses the PulseAudio socket below.
+  - --device=dri
+  # Save attachments to the real ~/Downloads.
+  - --filesystem=xdg-download
+  # Encrypted cookie storage via the host Secret Service.
+  - --talk-name=org.freedesktop.secrets
+  - --filesystem=xdg-run/keyring
+
+modules:
+  - name: wire-desktop
+    buildsystem: simple
+    subdir: upstream
+    build-options:
+      append-path: /usr/lib/sdk/node@NODE_VERSION@/bin
+      env:
+        XDG_CACHE_HOME: /run/build/wire-desktop/flatpak-node/cache
+        ELECTRON_CACHE: /run/build/wire-desktop/flatpak-node/cache/electron
+        YARN_GLOBAL_FOLDER: /run/build/wire-desktop/flatpak-node/yarn-berry
+        YARN_ENABLE_GLOBAL_CACHE: '0'
+        YARN_ENABLE_INLINE_BUILDS: '1'
+        YARN_ENABLE_TELEMETRY: '0'
+        YARN_ENABLE_NETWORK: '0'
+        npm_config_offline: 'true'
+        APP_ID: io.github.nichu42.wire-desktop-linux
+        APP_VERSION: '@APP_VERSION@'
+        BUILD_NUMBER: '@BUILD_NUMBER@'
+        BUILD_DATE: '@BUILD_DATE@'
+        ELECTRON_VERSION: '@ELECTRON_VERSION@'
+    build-commands:
+      # Apply the Linux runtime patch and the Flatpak-specific menu patch.
+      # Both must apply: a Flatpak without them is not shipped.
+      - patch -p1 --forward < ../patches/01-linux-runtime.patch
+      - patch -p1 --forward < ../patches/02-flatpak-runtime.patch
+
+      # Build tooling is kept outside the upstream tree in this repository.
+      - cp -a ../tools tools
+      - cp ../flatpak/electron-builder.config.cjs tools/electron-builder-flatpak.config.cjs
+
+      # Offline replacement for `yarn configure`: copy the pinned production
+      # config and icons instead of fetching them at build time.
+      - mkdir -p electron/img resources/icons
+      - cp -a ../config/wire-desktop/content/image/. electron/img/
+      - cp ../config/wire-desktop/content/image/logo/256x256.png resources/icons/256x256.png
+      - cp ../config/wire-desktop/content/image/logo/32x32.png resources/icons/32x32.png
+      - cp ../config/wire-desktop/content/image/logo/logo.ico electron/img/logo.ico
+      - cp ../config/wire-desktop/.env.defaults .env.defaults
+
+      # `postinstall: yarn configure` needs the network. The config files are
+      # already in place, so remove the hook for this build only.
+      - >-
+        node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));delete p.scripts.postinstall;fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
+
+      # Convert the generated Yarn Berry tarballs into the zip cache Yarn
+      # expects, then install entirely from that cache.
+      - node .yarn/releases/yarn-3.3.1.cjs plugin import /run/build/wire-desktop/flatpak-node/flatpak-yarn.js
+      - node .yarn/releases/yarn-3.3.1.cjs convertToZip .yarn/releases/yarn-3.3.1.cjs
+      - node .yarn/releases/yarn-3.3.1.cjs install --immutable --mode=skip-build
+      - node node_modules/electron/install.js
+
+      # Production config and the renderer/main bundles.
+      - node tools/stamp-config.mjs
+      - node .yarn/releases/yarn-3.3.1.cjs build:prepare
+
+      # Package the unpacked app only; AppImage/Flatpak targets are not used.
+      - node .yarn/releases/yarn-3.3.1.cjs electron-builder --linux --dir --x64 --config tools/electron-builder-flatpak.config.cjs
+
+      # Install the application and Flatpak metadata.
+      - install -Dm755 ../flatpak/wire-desktop-flatpak.sh /app/bin/wire-desktop-flatpak
+      - cp -a wrap/dist/linux-unpacked /app/wire-desktop
+      - install -Dm644 ../flatpak/io.github.nichu42.wire-desktop-linux.desktop /app/share/applications/io.github.nichu42.wire-desktop-linux.desktop
+      - install -Dm644 ../flatpak/io.github.nichu42.wire-desktop-linux.metainfo.xml /app/share/metainfo/io.github.nichu42.wire-desktop-linux.metainfo.xml
+      - sed -i "s/%VERSION%/$APP_VERSION/g; s/%DATE%/$BUILD_DATE/g" /app/share/metainfo/io.github.nichu42.wire-desktop-linux.metainfo.xml
+      - install -Dm644 resources/icons/256x256.png /app/share/icons/hicolor/256x256/apps/io.github.nichu42.wire-desktop-linux.png
+      - install -Dm644 LICENSE /app/share/licenses/io.github.nichu42.wire-desktop-linux/LICENSE
+
+      # Fail the build if the packaged tree does not match the production
+      # expectations (asar, fuses, desktop/metainfo, wrapper, size).
+      - node tools/assert-flatpak.mjs /app "$APP_ID" "$APP_VERSION" "$ELECTRON_VERSION"
+
+    sources:
+      - type: git
+        url: https://github.com/wireapp/wire-desktop.git
+        tag: '@UPSTREAM_TAG@'
+        commit: '@UPSTREAM_COMMIT@'
+        dest: upstream
+
+      - type: file
+        path: ../patches/01-linux-runtime.patch
+        dest: patches
+      - type: file
+        path: ../patches/02-flatpak-runtime.patch
+        dest: patches
+
+      - type: dir
+        path: ../tools
+        dest: tools
+
+      - type: file
+        path: wire-desktop-flatpak.sh
+        dest: flatpak
+      - type: file
+        path: io.github.nichu42.wire-desktop-linux.desktop
+        dest: flatpak
+      - type: file
+        path: io.github.nichu42.wire-desktop-linux.metainfo.xml
+        dest: flatpak
+      - type: file
+        path: electron-builder.config.cjs
+        dest: flatpak
+
+      - type: archive
+        url: '@CONFIG_URL@'
+        sha256: '@CONFIG_SHA256@'
+        strip-components: 1
+        dest: config
+
+      - generated-sources.json
