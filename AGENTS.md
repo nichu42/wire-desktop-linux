@@ -129,7 +129,8 @@ release; a failure creates a `Canary build failure` issue.
 AppStream lint) → `publish` (production GPG signing, signed install/smoke,
 attestation, Pages).
 A skipped resolve means the published tag/fingerprint is current. Push runs do
-not publish; a scheduled failure opens a `flatpak-failure` issue.
+not publish; a scheduled failure opens a `flatpak-failure` issue and a
+successful scheduled run closes it.
 
 Runner pins:
 
@@ -300,7 +301,7 @@ Gear Lever; do not use both for the same install.
   --prune-depth=2`; if the 1 GB Pages limit is still exceeded, move the OSTree
   objects to an object store and update the `.flatpakrepo` URL.
 - **Flatpak build failed on schedule**: check the `flatpak-failure` issue/run
-  log; push a fix; a successful scheduled run does not yet auto-close it.
+  log; push a fix; a successful scheduled run closes it.
 
 ## Repository settings
 

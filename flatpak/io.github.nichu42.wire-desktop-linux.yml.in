@@ -36,6 +36,8 @@ finish-args:
   # Encrypted cookie storage via the host Secret Service.
   - --talk-name=org.freedesktop.secrets
   - --filesystem=xdg-run/keyring
+  # System tray / StatusNotifierItem (AppIndicator).
+  - --talk-name=org.kde.StatusNotifierWatcher
 
 modules:
   - name: wire-desktop

@@ -27,6 +27,9 @@ on:
       - 'tools/flatpak-*'
       - 'tools/assert-flatpak.mjs'
       - 'tools/smoke-test-flatpak.sh'
+      - 'tools/stamp-config.mjs'
+      - 'tools/after-pack.cjs'
+      - 'tools/electron-builder.config.cjs'
       - '.github/workflows/flatpak.yml'
 
 permissions:
@@ -63,6 +66,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           INPUT_TAG: ${{ inputs.tag }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
           FORCE: ${{ inputs.force || 'false' }}
         run: |
           set -euo pipefail
@@ -107,6 +111,12 @@ jobs:
             if [ "$published_tag" = "$tag" ] && [ "$published_fingerprint" = "$fingerprint" ]; then
               skip=true
             fi
+          fi
+
+          # A no-publish dispatch is a canary: always build and test, even
+          # when the published repository already matches.
+          if [ "$INPUT_PUBLISH" = "false" ]; then
+            skip=false
           fi
 
           {
@@ -398,3 +408,25 @@ jobs:
           else
             gh issue create --title "$title" --body "$body" --label flatpak-failure
           fi
+
+
+  report-success:
+    name: Close Flatpak failure issues after a successful build
+    needs: [publish]
+    if: success() && github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Close open flatpak-failure issues
+        run: |
+          set -euo pipefail
+          gh issue list --label flatpak-failure --state open --json number --jq '.[].number' \
+            | while read -r number; do
+                gh issue close "$number" --comment "Flatpak build succeeded: $RUN_URL"
+              done

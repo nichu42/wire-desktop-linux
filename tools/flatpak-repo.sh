@@ -44,11 +44,13 @@ flatpak build-export "${sign_args[@]}" "$REPO_DIR" "$BUILD_DIR" stable
 flatpak build-update-repo "${sign_args[@]}" \
   --generate-static-deltas --prune --prune-depth=2 "$REPO_DIR"
 
+bundle_args=()
 if [ "$KEY_ID" != "-" ]; then
   gpg "${export_args[@]}" > "$OUTPUT_DIR/wire-desktop.gpg"
+  bundle_args=(--gpg-keys="$OUTPUT_DIR/wire-desktop.gpg")
 fi
 
-flatpak build-bundle "$REPO_DIR" \
+flatpak build-bundle "${bundle_args[@]}" "$REPO_DIR" \
   "$OUTPUT_DIR/Wire-${VERSION}-x86_64.flatpak" "$APP_ID" stable
 
 echo "flatpak-repo: exported $APP_ID $VERSION to $REPO_DIR"

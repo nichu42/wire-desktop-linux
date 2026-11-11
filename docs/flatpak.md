@@ -49,8 +49,9 @@ flatpak info --user io.github.nichu42.wire-desktop-linux
 ```
 
 The workflow also creates a Sigstore build-provenance attestation for the
-single-file `.flatpak` bundle in the workflow run. The bundle is not required for
-normal installation; the signed OSTree repository is the update channel.
+single-file `.flatpak` bundle in the workflow run. The bundle embeds the public
+key, so it can be installed directly with `flatpak install --bundle Wire-*.flatpak`;
+the signed OSTree repository is still the update channel.
 
 ## Build locally
 
@@ -134,7 +135,8 @@ The resolve job skips when the published `build-info.json` already has the same
 upstream tag and Flatpak fingerprint. Push-triggered runs build and test only;
 they do not publish. Scheduled and manual runs publish unless `publish=false`.
 
-A scheduled failure opens or updates a `flatpak-failure` issue.
+A scheduled failure opens or updates a `flatpak-failure` issue; a successful
+scheduled run closes open issues.
 
 ## Known limitations
 
@@ -155,8 +157,9 @@ A scheduled failure opens or updates a `flatpak-failure` issue.
   path was verified with Electron 43.1.1; `--device=all` is not needed. If
   the desktop has no camera portal backend, video calls are not available in
   the Flatpak; use the AppImage. The microphone uses PulseAudio; keyring uses
-  the host Secret Service. Screen sharing uses the normal PipeWire portal
-  where available.
+  the host Secret Service. The tray talks to
+  `org.kde.StatusNotifierWatcher`; screen sharing uses the normal PipeWire
+  portal where available.
 - **Profile:** the Flatpak uses `~/.var/app/<app-id>/`, separate from the
   AppImage's `~/.config/Wire`.
 
