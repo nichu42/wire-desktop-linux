@@ -72,6 +72,8 @@ modules:
       - mkdir -p electron/img resources/icons
       - cp -a ../config/wire-desktop/content/image/. electron/img/
       - cp ../config/wire-desktop/content/image/logo/256x256.png resources/icons/256x256.png
+      - cp ../config/wire-desktop/content/image/logo/256x256.png electron/img/logo.256.png
+      - cp ../config/wire-desktop/content/image/logo/256x256.png electron/img/logo.png
       - cp ../config/wire-desktop/content/image/logo/32x32.png resources/icons/32x32.png
       - cp ../config/wire-desktop/content/image/logo/logo.ico electron/img/logo.ico
       - cp ../config/wire-desktop/.env.defaults .env.defaults

@@ -32,7 +32,12 @@ if ! flatpak info --user "$APP_ID" >/dev/null 2>&1; then
 fi
 
 rm -f "$LOG"
-xvfb-run -a dbus-run-session -- \
+if [ -z "${DISPLAY:-}" ]; then
+  echo "smoke-test-flatpak: run under xvfb-run or set DISPLAY" >&2
+  exit 2
+fi
+
+dbus-run-session -- \
   flatpak run --user --env=ELECTRON_ENABLE_LOGGING=1 "$APP_ID" --disable-gpu >"$LOG" 2>&1 &
 pid=$!
 

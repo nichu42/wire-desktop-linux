@@ -84,6 +84,12 @@ if (exists(asarPath)) {
     'asar is missing @wireapp/commons config',
   );
   check(
+    entries.includes('/electron/img/logo.256.png'),
+    'asar is missing electron/img/logo.256.png',
+  );
+  check(entries.includes('/electron/img/logo.png'), 'asar is missing electron/img/logo.png');
+  check(entries.includes('/electron/img/logo.ico'), 'asar is missing electron/img/logo.ico');
+  check(
     !entries.some((entry) => /^\/node_modules\/(electron|@electron-internal)\//.test(entry)),
     'asar contains the dev-only electron package',
   );
