@@ -1,0 +1,61 @@
+diff --git a/electron/src/menu/system.ts b/electron/src/menu/system.ts
+index c73d451..3abbcfd 100644
+--- a/electron/src/menu/system.ts
++++ b/electron/src/menu/system.ts
+@@ -371,7 +371,10 @@ const win32Template: MenuItemConstructorOptions = {
+ const linuxTemplate: MenuItemConstructorOptions = {
+   label: `&${config.name}`,
+   submenu: [
+-    toggleAutoLaunchTemplate,
++    // Flatpak cannot write the host autostart directory. The app can still be
++    // started hidden with `flatpak run <app-id> --hidden` from the desktop's
++    // own startup configuration.
++    ...(process.env.FLATPAK_ID ? [] : [toggleAutoLaunchTemplate]),
+     toggleStartHiddenTemplate,
+     separatorTemplate,
+     localeTemplate,
+diff --git a/electron/src/managed/backends/linux.ts b/electron/src/managed/backends/linux.ts
+index 1fb84bc..adcaa4d 100644
+--- a/electron/src/managed/backends/linux.ts
++++ b/electron/src/managed/backends/linux.ts
+@@ -24,18 +24,32 @@ import {APPLOCK_OVERRIDE_KEY, LINUX_MANAGED_CONFIG_PATH} from '../constants';
+ 
+ const logger = getLogger('ManagedConfig/linux');
+ 
++// Flatpak mounts a read-only view of the host's /etc at /run/host/etc, but only when the
++// `host-etc` filesystem permission is granted. Managed deployments can opt in with
++// `flatpak override --user --filesystem=host-etc:ro <app-id>`.
++const FLATPAK_MANAGED_CONFIG_PATH = '/run/host/etc/wire/managed.json';
++
+ // Linux has no standard MDM enrollment API, so managed status is driven by the presence of a
+ // machine-wide managed config file placed by the organization. The file's presence means managed,
+ // unless it explicitly opts out with `{"applockOverride": false}`. A missing/unreadable file means unmanaged.
+ export function isDeviceManagedLinux(): boolean {
+-  try {
+-    const managedConfig = fs.readJSONSync(LINUX_MANAGED_CONFIG_PATH);
+-    return managedConfig?.[APPLOCK_OVERRIDE_KEY] !== false;
+-  } catch {
+-    // Missing file is the normal unmanaged path; only log genuine parse errors.
+-    if (fs.pathExistsSync(LINUX_MANAGED_CONFIG_PATH)) {
+-      logger.warn(`Failed to parse ${LINUX_MANAGED_CONFIG_PATH}, treating the device as unmanaged.`);
++  const managedConfigPaths = process.env.FLATPAK_ID
++    ? [FLATPAK_MANAGED_CONFIG_PATH, LINUX_MANAGED_CONFIG_PATH]
++    : [LINUX_MANAGED_CONFIG_PATH];
++
++  for (const managedConfigPath of managedConfigPaths) {
++    if (!fs.pathExistsSync(managedConfigPath)) {
++      continue;
++    }
++    try {
++      const managedConfig = fs.readJSONSync(managedConfigPath);
++      return managedConfig?.[APPLOCK_OVERRIDE_KEY] !== false;
++    } catch {
++      // The file exists but is unreadable or malformed. Treat it as unmanaged and do not
++      // fall back to the sandbox's /etc, which is never the host policy file.
++      logger.warn(`Failed to parse ${managedConfigPath}, treating the device as unmanaged.`);
++      return false;
+     }
+-    return false;
+   }
++  return false;
+ }

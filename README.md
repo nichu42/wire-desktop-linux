@@ -1,10 +1,11 @@
-# Wire Desktop for Linux (unofficial AppImage builds)
+# Wire Desktop for Linux (unofficial AppImage and Flatpak builds)
 
 [![Build Linux AppImage](https://github.com/nichu42/wire-desktop-linux/actions/workflows/build-linux.yml/badge.svg)](https://github.com/nichu42/wire-desktop-linux/actions/workflows/build-linux.yml)
-[![Latest release](https://img.shields.io/github/v/release/nichu42/wire-desktop-linux?label=release)](https://github.com/nichu42/wire-desktop-linux/releases/latest)
+[![Build Flatpak repository](https://github.com/nichu42/wire-desktop-linux/actions/workflows/flatpak.yml/badge.svg)](https://github.com/nichu42/wire-desktop-linux/actions/workflows/flatpak.yml)
+[![Latest AppImage release](https://img.shields.io/github/v/release/nichu42/wire-desktop-linux?label=AppImage%20release)](https://github.com/nichu42/wire-desktop-linux/releases/latest)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
 
-Unofficial, automatically rebuilt Linux AppImage of the
+Unofficial, automatically rebuilt Linux AppImage **and Flatpak** of the
 [Wire desktop client](https://github.com/wireapp/wire-desktop).
 
 > **Not affiliated with or endorsed by Wire Swiss GmbH.** “Wire” is a
@@ -25,19 +26,42 @@ multi-account switching, notifications, `wire://` handling and autostart. The
 web app itself is hosted by Wire and updates automatically.
 
 This repository rebuilds that shell from Wire's source, applies the Linux
-runtime changes Wire removed, keeps Electron on the newest **supported**
-patch, runs the upstream test suite, and publishes an AppImage with Gear
-Lever-compatible update metadata.
+runtime changes Wire removed, runs the upstream test suite for AppImage
+releases, and publishes both an AppImage with Gear Lever-compatible update
+metadata and a Flatpak from a signed GitHub-hosted repository. The AppImage
+keeps Electron on the newest **supported** patch; the Flatpak uses the upstream
+tag's Electron pin so its source build stays reproducible and offline.
 
-- Builds are triggered by new upstream `windows/*` release tags and by
-  Electron patch releases.
-- App versions match upstream build numbers (e.g. `3.46.5382`).
-- Nothing is published unless lint, the upstream test suite, artifact
-  assertions, a runtime smoke test and draft-asset verification pass.
+- Builds are triggered by new upstream `windows/*` release tags; the AppImage
+  also rebuilds for Electron patch releases.
+- App versions match the upstream build number (the tag suffix).
+- The AppImage is published through a draft/verification flow; the Flatpak is
+  published only after its own source-build, lint, assertion and smoke gate.
 
 ## Install
 
-### Gear Lever (recommended)
+### Flatpak (GitHub-hosted repository)
+
+The Flatpak is published from this repository's own signed Flatpak repository,
+not Flathub:
+
+```sh
+flatpak remote-add --if-not-exists --user wire \
+  https://nichu42.github.io/wire-desktop-linux/flatpak/wire.flatpakrepo
+flatpak install --user wire io.github.nichu42.wire-desktop-linux
+```
+
+Update it with `flatpak update --user`. The signing key fingerprint is published
+in `flatpak/build-info.json`; `flatpak remote-info --user wire
+io.github.nichu42.wire-desktop-linux` shows the signed ref. Install either the
+Flatpak or the AppImage, not both: they register the same `wire://` handler and
+both create a “Wire” launcher.
+The Flatpak profile is under
+`~/.var/app/io.github.nichu42.wire-desktop-linux/`, separate from the AppImage's
+`~/.config/Wire`; see [docs/flatpak.md](docs/flatpak.md) for migration details
+and build/signing instructions.
+
+### Gear Lever (recommended for the AppImage)
 
 [Gear Lever](https://gearlever.mijorus.it) integrates AppImages into your app
 menu and manages updates.
@@ -79,8 +103,8 @@ runtime, so FUSE is not required.
 
 ## Verify
 
-Every release publishes `SHA256SUMS` and a Sigstore build-provenance
-attestation:
+Every AppImage release publishes `SHA256SUMS` and a Sigstore
+build-provenance attestation:
 
 ```bash
 sha256sum -c SHA256SUMS
@@ -91,10 +115,17 @@ Gear Lever's `.zsync` check is transport integrity, not authenticity; use the
 attestation when you need to know the file was produced by this repository's
 workflow.
 
+For the Flatpak, the OSTree commits and summary are signed by this repository's
+Flatpak key. The fingerprint is in `flatpak/build-info.json`; verify the remote
+with `flatpak remote-info --user wire io.github.nichu42.wire-desktop-linux`.
+
 ## Requirements
 
 - x86_64 Linux, glibc ≥ 2.31 (Ubuntu 22.04+, Debian 12+, Fedora 36+, Arch,
-  CachyOS, …)
+  CachyOS, …) for the AppImage
+- Flatpak 1.12+ and a working Flathub remote for the Flatpak runtime; the
+  application itself comes from this repository's remote
+- `xdg-desktop-portal` with a camera backend (GNOME/KDE) for Flatpak video calls
 - GTK 3, libnotify (notifications), NSS
 - libsecret + a keyring (GNOME Keyring/KWallet) for encrypted cookie storage;
   the app still runs without one, with weaker cookie protection
@@ -120,13 +151,22 @@ Xvfb (X11) because Wayland sessions are not available on GitHub runners.
 
 The app shows its main window on launch by default. To start it in the tray
 instead, enable **Wire → Start Hidden in Tray** in the menu, or set
-`"startHidden": true` in `~/.config/Wire/config/init.json`. The change takes
-effect on the next launch.
+`"startHidden": true` in the app's `config/init.json` (`~/.config/Wire` for the
+AppImage, `~/.var/app/io.github.nichu42.wire-desktop-linux/config/Wire` for the
+Flatpak). The change takes effect on the next launch.
 
 A `wire://` link still opens the window, and **Launch Wire On Startup**
 already passes `--hidden`, so autostart starts in the tray. You can also pass
 `--hidden` or `--startup` on the command line to start in the tray for a
 single run.
+
+In the Flatpak, **Launch Wire On Startup** is hidden: the sandbox cannot write
+the host's autostart directory. Add this command to your desktop's own startup
+applications instead:
+
+```sh
+flatpak run io.github.nichu42.wire-desktop-linux --hidden
+```
 
 ## Ubuntu 24.04 / 26.04 and the Chromium sandbox
 
@@ -156,29 +196,65 @@ This grants the AppImage permission to create a user namespace; it does **not**
 disable the sandbox. `--no-sandbox` disables renderer sandboxing and is a
 security regression for a messenger.
 
+The Flatpak does not need this AppArmor profile: zypak and Flatpak's own sandbox
+provide the runtime environment, and the desktop entry/Wrapper never pass
+`--no-sandbox`.
+
 ## Troubleshooting
 
 - **No tray icon on GNOME:** install the AppIndicator extension; GNOME does not
   ship tray support by default. If you enabled **Start Hidden in Tray** without
   a working tray, launch the app again from the menu to show the window.
+- **Flatpak autostart:** **Launch Wire On Startup** is intentionally hidden in
+  the Flatpak. Add `flatpak run io.github.nichu42.wire-desktop-linux --hidden`
+  to your desktop's startup applications. The same command works for
+  `--startup`.
+- **Flatpak managed configuration:** `/etc` is not visible at that path inside
+  the sandbox. Managed deployments can opt in; the app then reads
+  `/run/host/etc/wire/managed.json`. This exposes the host's `/etc` read-only,
+  so apply it only on managed devices:
+
+  ```sh
+  flatpak override --user --filesystem=host-etc:ro \
+    io.github.nichu42.wire-desktop-linux
+  ```
 - **`wire://` links do not open the app:** re-register the handler for the
   desktop file you actually have — Gear Lever uses `wire.desktop`,
-  `install.sh` uses `wire-desktop.desktop`:
+  `install.sh` uses `wire-desktop.desktop`, and the Flatpak exports
+  `io.github.nichu42.wire-desktop-linux.desktop`:
 
   ```bash
   xdg-mime default wire.desktop x-scheme-handler/wire          # Gear Lever
   xdg-mime default wire-desktop.desktop x-scheme-handler/wire  # install.sh
+  xdg-mime default io.github.nichu42.wire-desktop-linux.desktop \
+    x-scheme-handler/wire                                      # Flatpak
   ```
 - **Keyring prompt / no encrypted cookies:** install `gnome-keyring` or
-  `kwallet` and log in to the session keyring.
+  `kwallet` and log in to the session keyring. For the Flatpak, check
+  `flatpak info --show-permissions io.github.nichu42.wire-desktop-linux` and
+  make sure the Secret Service is running.
+- **Camera/video in the Flatpak:** the app uses the XDG Camera portal
+  (`WebRtcPipeWireCamera` is enabled in the wrapper), so no broad
+  `--device=all` permission is required. The first camera use should prompt for
+  permission; if it was denied, reset it with:
+
+  ```sh
+  flatpak permission-remove devices camera \
+    io.github.nichu42.wire-desktop-linux
+  ```
+
+  Check that `xdg-desktop-portal` and a desktop backend are running. If your
+  desktop has no camera portal backend, use the AppImage for video calls.
 - **Screen sharing shows the wrong content:** try the opposite of your current
   mode (`--ozone-platform=x11` or native Wayland) and make sure PipeWire is
-  running.
+  running. The Flatpak uses the desktop's ScreenCast portal.
 - **AppImage will not start:** run it from a terminal and check the output.
   If execution from the mount point is blocked, use
   `--appimage-extract-and-run`.
 - Logs: the app writes `console.log` in its user-data directory
-  (`~/.config/Wire/`). Redact personal data before sharing.
+  (`~/.config/Wire/` for the AppImage,
+  `~/.var/app/io.github.nichu42.wire-desktop-linux/config/Wire/` for the
+  Flatpak). Redact personal data before sharing.
 
 ## How it works
 
@@ -195,13 +271,27 @@ new upstream windows/* tag  (or Electron patch release)
   → draft release, attest, verify assets, publish
 ```
 
+The Flatpak pipeline is separate:
+
+```
+tools/flatpak-prepare.sh <windows/* tag>
+  → resolve commit and Electron pin, pin the production config checksum
+  → flatpak-node-generator: offline Yarn/Electron sources
+  → flatpak-builder: patch, build, unpacked electron-builder output
+  → assert asar/fuses/desktop/metainfo/wrapper + Xvfb smoke
+  → test-signed repo in CI; production GPG signing and Pages publish
+```
+
 Dependency policy: no application dependency versions are pinned here. Electron
 is resolved at build time to the newest patch of upstream's major, or to the
 oldest still-supported major if upstream's choice is EOL. Other app
 dependencies stay at the versions Wire ships; they move with each upstream tag.
 electron-builder is resolved to the latest release, with an automatic fallback
 to upstream's version if packaging fails; `@electron/fuses` follows upstream's
-`1.8.x` pin because 2.x breaks the upstream TypeScript configuration.
+`1.8.x` pin because 2.x breaks the upstream TypeScript configuration. The
+Flatpak deliberately uses the upstream tag's Electron/electron-builder pins so
+its source build remains reproducible and offline; it may trail the AppImage by
+Electron patch releases.
 
 The release workflow is split into read-only build jobs and a write-only
 publish job; `yarn install` never sees a write token. All actions are pinned to
@@ -215,8 +305,11 @@ tests, artifact structure (production config, version, fuses, desktop entry,
 no source maps/dev files), update-info/`.zsync` integrity, and a direct launch
 that waits for the wrapper window and for the privileged webview to reach
 `app.wire.com` on the pinned build image (currently Ubuntu 26.04) and Ubuntu
-22.04. Playwright cannot drive the packaged app because the production fuses
-disable `--inspect`; the smoke test reads the app's own log instead.
+22.04. The Flatpak job additionally checks the offline source build,
+manifest/AppStream lint, asar/fuses/desktop/metainfo/wrapper
+assertions and a `flatpak run` smoke test. Playwright cannot drive the packaged
+app because the production fuses disable `--inspect`; the smoke tests read the
+app's own log instead.
 
 Not automated: login, sending messages, calls and screen sharing — these need a
 Wire test account or a test backend. They are checked manually after setup and
@@ -224,16 +317,18 @@ after Electron-major changes.
 
 ## Packaging status
 
-AppImage + Gear Lever is the current packaging path. The upstream source and
-Linux runtime patch are packaging-agnostic, so Flatpak, AUR or another format
-can be added later without changing the build source.
+AppImage + Gear Lever and the GitHub-hosted Flatpak repository are the current
+packaging paths. They share the same upstream source and Linux runtime patches,
+but have separate build gates.
 
-- Flathub's Wire package is archived (the app was declared EOL); a community
-  Flatpak would need its own repository and maintenance.
-- AUR packages are third-party; `wire-desktop-git` uses the internal-branded
+- **AppImage + Gear Lever:** upstream-versioned builds, embedded update source
+  and a single-file install across distributions.
+- **Flatpak:** source build from the upstream tag, signed OSTree repository on
+  GitHub Pages, automatic `flatpak update`. It is not on Flathub; Flathub's
+  archived Wire package and its review requirements are out of scope.
+- **AUR:** third-party; `wire-desktop-git` uses the internal-branded
   configuration, and we do not maintain one.
-- AppImage + Gear Lever currently gives upstream-versioned builds, update
-  metadata and one install path across distributions.
+- Do not install the AppImage and the Flatpak together; pick one update path.
 
 ## Development
 
@@ -243,7 +338,9 @@ pipeline itself is deterministic GitHub Actions from upstream source; no AI
 runs at build or release time.
 
 See [AGENTS.md](AGENTS.md) for the CI-equivalent local build sequence and
-prerequisites; the release workflow is the reference implementation.
+prerequisites, and [docs/flatpak.md](docs/flatpak.md) for the Flatpak build,
+signing and repository operations. The release workflows are the reference
+implementation.
 
 ## Disclaimer
 

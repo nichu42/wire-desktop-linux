@@ -4,10 +4,11 @@ Instructions for agents working in this repository.
 
 ## What this is
 
-Unofficial Linux AppImage builds of Wire Desktop, produced from a fork of
-[`wireapp/wire-desktop`](https://github.com/wireapp/wire-desktop). Upstream
-removed Linux support; this fork rebuilds the Electron wrapper from upstream
-release tags and publishes the AppImage.
+Unofficial Linux AppImage and Flatpak builds of Wire Desktop, produced from a
+fork of [`wireapp/wire-desktop`](https://github.com/wireapp/wire-desktop).
+Upstream removed Linux support; this fork rebuilds the Electron wrapper from
+upstream release tags and publishes the AppImage plus a signed, GitHub-hosted
+Flatpak repository.
 
 - Repository: `nichu42/wire-desktop-linux` (public fork; keep the fork
   relationship intact).
@@ -16,9 +17,10 @@ release tags and publishes the AppImage.
 - Upstream build source: newest tag matching `windows/*`.
 - Current release: `gh release list --repo nichu42/wire-desktop-linux --limit 1`.
   Do not hardcode version numbers in these docs.
-- AppImage is the current artifact. Flatpak, AUR or another format can be
-  added later; keep packaging-specific decisions in `tools/` instead of
-  assuming AppImage forever.
+- AppImage is the primary single-file artifact; the Flatpak is published from a
+  signed OSTree repository on GitHub Pages. Flathub is intentionally out of
+  scope. Keep packaging-specific decisions in `tools/` and `flatpak/` instead of
+  assuming one format.
 
 ## Invariants
 
@@ -53,6 +55,23 @@ release tags and publishes the AppImage.
     `runner` input default in `build-linux.yml`.
 12. No personal data in releases or `build-info.json`. Wire logs can contain
     member data: never commit them or paste them outside the session.
+13. The Flatpak is a source build: apply both runtime patches, fail closed if
+    either does not apply, and do not package a Flatpak without the assertions
+    and smoke test. The AppImage keeps its best-effort patch behavior.
+14. The Flatpak uses the upstream tag's `yarn.lock` and Electron/electron-builder
+    pins; do not run `yarn up` or modify the lockfile in the Flatpak build. A
+    documented security exception may vendor an updated lockfile and regenerated
+    sources.
+15. The Flatpak never passes `--no-sandbox`; it uses zypak from the Electron2
+    BaseApp and the same fuses as the AppImage. Camera access goes through the
+    XDG Camera portal with `WebRtcPipeWireCamera`; do not add `--device=all`.
+    Do not add AppArmor/AppImage update metadata to the Flatpak.
+16. The Flatpak signing key is available only to the publish job. Build jobs are
+    read-only and must never receive `FLATPAK_GPG_PRIVATE_KEY`. Publish only
+    from the protected `linux` branch or a tag.
+17. Keep the GitHub Pages repository URL and Flatpak app ID stable. A change
+    breaks installed remotes; the app ID is fixed before the first public
+    release.
 
 ## Layout
 
@@ -62,6 +81,15 @@ release tags and publishes the AppImage.
 | `SECURITY.md` | Private reporting, scope, attestation verification |
 | `install.sh` | Non-Gear-Lever install/update helper |
 | `patches/01-linux-runtime.patch` | Restores the Linux runtime behavior upstream removed |
+| `patches/02-flatpak-runtime.patch` | Hides the Flatpak-incompatible autostart toggle |
+| `flatpak/` | Manifest template, desktop entry, metainfo, zypak wrapper, Flatpak electron-builder config |
+| `tools/flatpak-prepare.sh` | Resolves the tag/config, generates offline sources, renders the manifest |
+| `tools/flatpak-render-manifest.mjs` | Fills the Flatpak manifest template |
+| `tools/flatpak-repo.sh` | Exports/signs the OSTree repo and builds a bundle |
+| `tools/flatpak-keygen.sh` | Generates the Flatpak signing key and prints the secrets |
+| `tools/assert-flatpak.mjs` | Asserts the installed `/app` tree (asar, fuses, metadata, size) |
+| `tools/smoke-test-flatpak.sh` | `flatpak run` runtime smoke test (Xvfb) |
+| `docs/flatpak.md` | Flatpak build, signing and repository operations |
 | `tools/stamp-config.mjs` | Writes production `electron/wire.json` + `package.json` |
 | `tools/electron-builder.config.cjs` | AppImage packaging, files, desktop entry, fuses hook |
 | `tools/after-pack.cjs` | Flips the production Electron fuses |
@@ -71,6 +99,7 @@ release tags and publishes the AppImage.
 | `tools/release-notes.sh` | Release notes from `build-info.json` + changelog |
 | `resources/` | AppStream metainfo + AppArmor profile |
 | `.github/workflows/build-linux.yml` | Resolve → build → 22.04 smoke → publish |
+| `.github/workflows/flatpak.yml` | Flatpak resolve → build/test → sign → Pages |
 | `.github/workflows/runner-freshness.yml` | Weekly runner migration check + canary |
 | `.github/workflows/lint.yml` | actionlint, zizmor, shellcheck, node --check |
 | `.github/workflows/scorecard.yml` | OpenSSF Scorecard |
@@ -94,9 +123,19 @@ Jobs: `resolve` → `build` → `smoke-2204` → `publish`, plus `report-failure
 `report-success`. A canary (`publish=false`) runs the full gate but creates no
 release; a failure creates a `Canary build failure` issue.
 
+`flatpak.yml` triggers on the daily 06:37 UTC schedule, `workflow_dispatch`
+(`tag`, `force`, `publish`) and pushes to the Flatpak files. Jobs:
+`resolve` → `build` (offline source build, test-signed repo, smoke, manifest/
+AppStream lint) → `publish` (production GPG signing, signed install/smoke,
+attestation, Pages).
+A skipped resolve means the published tag/fingerprint is current. Push runs do
+not publish; a scheduled failure opens a `flatpak-failure` issue and a
+successful scheduled run closes it.
+
 Runner pins:
 
 - artifact `resolve`/`build`: `ubuntu-26.04` (green canary);
+- Flatpak `resolve`/`build`/`publish`: `ubuntu-24.04`;
 - `publish`, reporting, lint, Scorecard, keepalive: `ubuntu-24.04`;
 - compatibility smoke: `ubuntu-22.04`.
 
@@ -116,9 +155,14 @@ gh workflow run build-linux.yml --repo nichu42/wire-desktop-linux \
 gh workflow run build-linux.yml --repo nichu42/wire-desktop-linux \
   -f tag=windows/3.46.5382 -f force=true
 
+# Flatpak build/test only (no Pages publish)
+gh workflow run flatpak.yml --repo nichu42/wire-desktop-linux \
+  -f tag=windows/3.46.5382 -f publish=false
+
 gh run list --repo nichu42/wire-desktop-linux --limit 5
 gh run watch <run-id> --repo nichu42/wire-desktop-linux --compact
 gh issue list --repo nichu42/wire-desktop-linux --label build-failure
+gh issue list --repo nichu42/wire-desktop-linux --label flatpak-failure
 ```
 
 ## Releases
@@ -134,6 +178,10 @@ gh issue list --repo nichu42/wire-desktop-linux --label build-failure
   policy, EOL flag, build time and run id.
 - Publish flow: draft → attest provenance → download assets back and verify →
   publish. Never upload directly to a published release.
+- The Flatpak is **not** a GitHub release asset. It is published to
+  `https://nichu42.github.io/wire-desktop-linux/flatpak/` with a signed OSTree
+  repository, `wire.flatpakrepo`, `build-info.json` and the rendered manifest.
+  AppImage release assets and Gear Lever metadata are unchanged.
 - Verify a release:
 
 ```bash
@@ -155,13 +203,22 @@ Do not prune releases; they are kept for rollback and version pinning.
 - **App dependencies**: upstream's tested set; never auto-bump them.
 - Apply overrides with
   `yarn up electron@<v> electron-builder@<v> @electron/fuses@<v>`, then
-  `yarn install --immutable`. `postinstall: yarn configure` must run; it fetches
-  the production config and icons.
+  `yarn install --immutable`. For the AppImage, `postinstall: yarn configure`
+  must run; it fetches the production config and icons. The Flatpak replaces it
+  with the pinned offline config sources.
+- **Flatpak:** the upstream tag's lockfile and Electron/electron-builder pins are
+  used unchanged with `yarn install --immutable`; `yarn up` is forbidden in the
+  Flatpak build. `flatpak-node-generator` supplies all Yarn/Electron sources and
+  the production config archive is pinned by URL + SHA-256. The Flatpak may
+  trail the AppImage by Electron patch releases; a documented security exception
+  may vendor a new lockfile and regenerated sources.
 
 ## Local checks
 
 The build runs in CI; a full local build needs Node 22 (`.node-version`), the
 committed Yarn 3.3.1, Xvfb, `x11-utils`, `zsync`, `binutils` and `shellcheck`.
+The Flatpak build additionally needs Flatpak, `flatpak-builder`,
+`flatpak-node-generator`, `jq` and `patch`.
 
 ```bash
 node .yarn/releases/yarn-3.3.1.cjs install
@@ -171,19 +228,28 @@ node tools/stamp-config.mjs                          # BUILD_NUMBER required
 yarn build:prepare
 RELEASE_REVISION= yarn electron-builder --linux AppImage --x64 \
   --config tools/electron-builder.config.cjs
+
+# Flatpak (writes generated sources and a rendered manifest)
+tools/flatpak-prepare.sh windows/<version>
+flatpak-builder --user --install-deps-from=flathub \
+  --force-clean --disable-rofiles-fuse \
+  flatpak/build flatpak/io.github.nichu42.wire-desktop-linux.yml
 ```
 
 The CI build clones upstream into `src/`, applies the patch, copies `tools/`
 and `resources/` into it, then stamps/builds/packages. A local full build must
-replicate that layout.
+replicate that layout. The Flatpak build applies `patches/01` **and**
+`patches/02` inside `flatpak-builder` and fails closed if either fails.
 
 Manual acceptance after a build: launch, log in, send a message, place one call
-and try screen sharing, verify `wire://`, and confirm the tray/version. The old
-and new clients share `~/.config/Wire`; only one can run at a time.
+and try screen sharing, verify `wire://`, and confirm the tray/version. The
+AppImage's old and new clients share `~/.config/Wire`; the Flatpak uses
+`~/.var/app/io.github.nichu42.wire-desktop-linux/`. Only one instance should run
+at a time.
 
 ## Gear Lever and install
 
-Gear Lever is the primary update path. The AppImage embeds the update source;
+Gear Lever is the primary AppImage update path. The AppImage embeds the update source;
 `.zsync` SHA-1 comparison drives detection. Users add the AppImage once and use
 Gear Lever's Update button. `install.sh` is the fallback for systems without
 Gear Lever; do not use both for the same install.
@@ -219,14 +285,35 @@ Gear Lever; do not use both for the same install.
   the patch or tooling, push; a successful scheduled run closes the issue.
 - **Gear Lever metadata**: if detection breaks, verify `.upd_info`, the
   `.zsync` SHA-1, the asset glob and `/releases/latest`.
+- **Flatpak new upstream release**: the `flatpak.yml` schedule resolves it.
+  If the config tag or lockfile changed, rerun `tools/flatpak-prepare.sh` and
+  commit any packaging changes; the build job regenerates sources each run.
+- **Flatpak patch fails**: the build fails closed; refresh `patches/01` and/or
+  `patches/02` against the target tag. Never ship a Flatpak without both.
+- **Flatpak repository/signing**: run `tools/flatpak-keygen.sh` once, add the
+  `FLATPAK_GPG_PRIVATE_KEY` and `FLATPAK_GPG_KEY_ID` secrets, enable Pages with
+  GitHub Actions as the source. Keep the key and Pages URL stable.
+- **Flatpak managed config**: do not add `/etc/wire` to `--filesystem`; `/etc`
+  is reserved and subpaths do not work. Managed deployments can opt in with
+  `--filesystem=host-etc:ro`; the app reads `/run/host/etc/wire/managed.json`.
+  This exposes all of host `/etc` read-only, so use it only on managed devices.
+- **Flatpak Pages too large**: prune with `flatpak build-update-repo --prune
+  --prune-depth=2`; if the 1 GB Pages limit is still exceeded, move the OSTree
+  objects to an object store and update the `.flatpakrepo` URL.
+- **Flatpak build failed on schedule**: check the `flatpak-failure` issue/run
+  log; push a fix; a successful scheduled run closes it.
 
 ## Repository settings
 
 Public fork; default branch `linux`; Actions enabled with read-only default;
-workflows `build-linux`, `lint`, `scorecard`, `keepalive`, `runner-freshness`
-enabled; upstream workflows removed from `linux`. Issues enabled; private
-vulnerability reporting, secret scanning and push protection enabled. Only the
-automatic `GITHUB_TOKEN` is used — no repository secrets.
+workflows `build-linux`, `flatpak`, `lint`, `scorecard`, `keepalive`,
+`runner-freshness` enabled; upstream workflows removed from `linux`. Issues
+enabled; private vulnerability reporting, secret scanning and push protection
+enabled. GitHub Pages uses GitHub Actions as the source; the Flatpak site is
+`https://nichu42.github.io/wire-desktop-linux/flatpak/`. The automatic
+`GITHUB_TOKEN` is used for normal operations. The Flatpak publish job
+additionally uses `FLATPAK_GPG_PRIVATE_KEY` and `FLATPAK_GPG_KEY_ID`; no
+personal access tokens are used.
 
 Scorecard publishes SARIF to the code-scanning page. Those alerts are
 repository-health checks, not a scan of upstream source. The by-design ones
