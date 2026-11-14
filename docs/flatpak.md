@@ -40,7 +40,8 @@ To switch from the GitHub remote to another remote later, uninstall without
 ## Verification
 
 The repository summary and commits are GPG-signed. The public key is embedded in
-`wire.flatpakrepo`; the fingerprint is published in `flatpak/build-info.json`.
+`wire.flatpakrepo`; the fingerprint is published in the repository's
+[`build-info.json`](https://nichu42.github.io/wire-desktop-linux/flatpak/build-info.json).
 See [SECURITY.md](../SECURITY.md) for the verification policy.
 
 ```sh
@@ -108,7 +109,8 @@ Add the two repository secrets it prints:
 The key is passphrase-less because Flatpak cannot prompt during a CI signing
 step. Keep an offline backup and treat the GitHub secret as the only copy in
 automation. The public key is published in the repository and embedded in
-`wire.flatpakrepo`.
+`wire.flatpakrepo`. `tools/flatpak-keygen.sh` creates a key that expires after
+five years; rotate it before then and republish the public key.
 
 Enable **Pages → Build and deployment → Source: GitHub Actions** once in the
 repository settings. The publish job deploys `public/` to:
@@ -162,6 +164,10 @@ scheduled run closes open issues.
   portal where available.
 - **Profile:** the Flatpak uses `~/.var/app/<app-id>/`, separate from the
   AppImage's `~/.config/Wire`.
+- **Update downloads:** every publish exports into a fresh OSTree repository,
+  so Pages carries only the newest commit and no N-1→N static delta exists.
+  `flatpak update` still works, but it transfers the new commit in full instead
+  of a delta.
 
 ## Managed deployments
 

@@ -210,7 +210,17 @@ jobs:
       - name: Create build artifacts
         run: |
           set -euo pipefail
-          tar -C flatpak/build -cJf flatpak/dist/builddir.tar.xz files metadata
+          # export/ is part of the finalized build directory. flatpak
+          # build-export in the publish job rejects the directory as
+          # "not finalized" without it.
+          tar -C flatpak/build -cJf flatpak/dist/builddir.tar.xz files export metadata
+          listing="$(mktemp)"
+          tar -tJf flatpak/dist/builddir.tar.xz >"$listing"
+          if ! grep -q '^export/' "$listing"; then
+            echo "::error::builddir.tar.xz is missing export/"
+            exit 1
+          fi
+          rm -f "$listing"
           cp "flatpak/$APP_ID.yml" flatpak/dist/
           cp flatpak/generated-sources.json flatpak/dist/
           cp flatpak/prepared.json flatpak/dist/
@@ -328,7 +338,6 @@ jobs:
           cp -a flatpak/repo public/flatpak/repo
           cp flatpak/dist/wire-desktop.gpg public/flatpak/
           cp flatpak/dist/Wire-*-x86_64.flatpak public/flatpak/
-          cp flatpak/dist/build-info.json public/flatpak/
           cp flatpak/dist/io.github.nichu42.wire-desktop-linux.yml public/flatpak/
           cp flatpak/dist/generated-sources.json public/flatpak/
           touch public/.nojekyll

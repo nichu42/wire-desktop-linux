@@ -52,10 +52,11 @@ flatpak install --user wire io.github.nichu42.wire-desktop-linux
 ```
 
 Update it with `flatpak update --user`. The signing key fingerprint is published
-in `flatpak/build-info.json`; `flatpak remote-info --user wire
-io.github.nichu42.wire-desktop-linux` shows the signed ref. Install either the
-Flatpak or the AppImage, not both: they register the same `wire://` handler and
-both create a “Wire” launcher.
+in the repository's
+[`build-info.json`](https://nichu42.github.io/wire-desktop-linux/flatpak/build-info.json);
+`flatpak remote-info --user wire io.github.nichu42.wire-desktop-linux` shows the
+signed ref. Install either the Flatpak or the AppImage, not both: they register
+the same `wire://` handler and both create a “Wire” launcher.
 The Flatpak profile is under
 `~/.var/app/io.github.nichu42.wire-desktop-linux/`, separate from the AppImage's
 `~/.config/Wire`; see [docs/flatpak.md](docs/flatpak.md) for migration details
@@ -116,8 +117,10 @@ attestation when you need to know the file was produced by this repository's
 workflow.
 
 For the Flatpak, the OSTree commits and summary are signed by this repository's
-Flatpak key. The fingerprint is in `flatpak/build-info.json`; verify the remote
-with `flatpak remote-info --user wire io.github.nichu42.wire-desktop-linux`.
+Flatpak key. The fingerprint is in the published
+[`build-info.json`](https://nichu42.github.io/wire-desktop-linux/flatpak/build-info.json);
+verify the remote with
+`flatpak remote-info --user wire io.github.nichu42.wire-desktop-linux`.
 
 ## Requirements
 

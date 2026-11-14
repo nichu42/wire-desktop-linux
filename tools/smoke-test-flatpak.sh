@@ -23,7 +23,7 @@ if [ -n "$BUNDLE" ]; then
   if [ -n "$GPG_FILE" ]; then
     gpg_args=(--gpg-file="$GPG_FILE")
   fi
-  flatpak install --user --noninteractive "${gpg_args[@]}" --bundle "$BUNDLE"
+  flatpak install --user -y --noninteractive "${gpg_args[@]}" --bundle "$BUNDLE"
 fi
 
 if ! flatpak info --user "$APP_ID" >/dev/null 2>&1; then

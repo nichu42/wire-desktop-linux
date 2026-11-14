@@ -67,6 +67,19 @@ if [ -z "$electron" ]; then
   exit 1
 fi
 
+# The manifest runs the committed Yarn release directly. Derive its version
+# from upstream instead of hardcoding a path that breaks on an upstream bump.
+yarn_version="$(jq -r '.packageManager // empty' "$tmp/package.json" | sed -n 's/^yarn@//p')"
+yarn_version="${yarn_version%%+*}"
+if [ -z "$yarn_version" ]; then
+  echo "flatpak-prepare: upstream package.json has no yarn packageManager pin" >&2
+  exit 1
+fi
+if ! curl -fsI "https://raw.githubusercontent.com/wireapp/wire-desktop/$commit/.yarn/releases/yarn-${yarn_version}.cjs" >/dev/null; then
+  echo "flatpak-prepare: upstream has no .yarn/releases/yarn-${yarn_version}.cjs" >&2
+  exit 1
+fi
+
 config_spec="$(jq -r '.dependencies["wire-web-config-production"]' "$tmp/app-config.json")"
 config_repo="${config_spec%%#*}"
 config_ref="${config_spec##*#}"
@@ -87,6 +100,7 @@ render_args=(
   --version "$VERSION"
   --build "$BUILD"
   --electron "$electron"
+  --yarn "$yarn_version"
   --runtime "$RUNTIME_VERSION"
   --base "$BASE_VERSION"
   --node "$NODE_VERSION"
@@ -107,6 +121,7 @@ jq -n \
   --arg version "$VERSION" \
   --arg build "$BUILD" \
   --arg electron "$electron" \
+  --arg yarn "$yarn_version" \
   --arg runtime "$RUNTIME_VERSION" \
   --arg base "$BASE_VERSION" \
   --arg node "$NODE_VERSION" \
@@ -122,6 +137,7 @@ jq -n \
     version: $version,
     build: $build,
     electron: $electron,
+    yarn: $yarn,
     runtime: $runtime,
     base: $base,
     node: $node,

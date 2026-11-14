@@ -8,7 +8,7 @@
 // Usage:
 //   node tools/flatpak-render-manifest.mjs \
 //     --tag windows/3.46.5382 --commit <sha> --version 3.46.5382 --build 5382 \
-//     --electron 43.1.1 --config-url <url> --config-sha256 <sha> \
+//     --electron 43.1.1 --yarn 3.3.1 --config-url <url> --config-sha256 <sha> \
 //     [--runtime 26.08] [--base 26.08] [--node 22] [--date YYYY-MM-DD] \
 //     [--output flatpak/io.github.nichu42.wire-desktop-linux.yml]
 
@@ -34,7 +34,7 @@ for (let index = 0; index < args.length; index += 1) {
   index += 1;
 }
 
-const required = ['tag', 'commit', 'version', 'build', 'electron', 'config-url', 'config-sha256'];
+const required = ['tag', 'commit', 'version', 'build', 'electron', 'yarn', 'config-url', 'config-sha256'];
 for (const key of required) {
   if (!options[key]) {
     throw new Error(`Missing required option --${key}`);
@@ -51,6 +51,7 @@ const values = {
   BUILD_NUMBER: options.build,
   BUILD_DATE: options.date || new Date().toISOString().slice(0, 10),
   ELECTRON_VERSION: options.electron,
+  YARN_VERSION: options.yarn,
   CONFIG_URL: options['config-url'],
   CONFIG_SHA256: options['config-sha256'],
 };

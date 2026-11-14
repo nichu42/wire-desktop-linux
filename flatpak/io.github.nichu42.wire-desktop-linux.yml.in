@@ -87,17 +87,17 @@ modules:
 
       # Convert the generated Yarn Berry tarballs into the zip cache Yarn
       # expects, then install entirely from that cache.
-      - node .yarn/releases/yarn-3.3.1.cjs plugin import /run/build/wire-desktop/flatpak-node/flatpak-yarn.js
-      - node .yarn/releases/yarn-3.3.1.cjs convertToZip .yarn/releases/yarn-3.3.1.cjs
-      - node .yarn/releases/yarn-3.3.1.cjs install --immutable --mode=skip-build
+      - node .yarn/releases/yarn-@YARN_VERSION@.cjs plugin import /run/build/wire-desktop/flatpak-node/flatpak-yarn.js
+      - node .yarn/releases/yarn-@YARN_VERSION@.cjs convertToZip .yarn/releases/yarn-@YARN_VERSION@.cjs
+      - node .yarn/releases/yarn-@YARN_VERSION@.cjs install --immutable --mode=skip-build
       - node node_modules/electron/install.js
 
       # Production config and the renderer/main bundles.
       - node tools/stamp-config.mjs
-      - node .yarn/releases/yarn-3.3.1.cjs build:prepare
+      - node .yarn/releases/yarn-@YARN_VERSION@.cjs build:prepare
 
       # Package the unpacked app only; AppImage/Flatpak targets are not used.
-      - node .yarn/releases/yarn-3.3.1.cjs electron-builder --linux --dir --x64 --config tools/electron-builder-flatpak.config.cjs
+      - node .yarn/releases/yarn-@YARN_VERSION@.cjs electron-builder --linux --dir --x64 --config tools/electron-builder-flatpak.config.cjs
 
       # Install the application and Flatpak metadata.
       - install -Dm755 ../flatpak/wire-desktop-flatpak.sh /app/bin/wire-desktop-flatpak
