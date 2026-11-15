@@ -1,5 +1,20 @@
+diff --git a/electron/html/about.html b/electron/html/about.html
+index c37a569..63d1bd3 100644
+--- a/electron/html/about.html
++++ b/electron/html/about.html
+@@ -13,6 +13,10 @@
+       <p class="webappAVSVersion copy">
+         <span data-string="aboutWebappAVSVersion"></span> <span id="webappAVSVersion"></span>
+       </p>
++      <p id="linuxBuildRow" class="copy" hidden><span id="linuxBuild"></span></p>
++      <p id="linuxRepoRow" hidden>
++        <a id="linuxBuildLink" href="#" target="_blank"></a>
++      </p>
+       <p>
+         <a href="#" data-href="aboutUpdatesUrl" target="_blank"><span data-string="aboutUpdate"></span></a>
+       </p>
 diff --git a/electron/src/locale/en-US.json b/electron/src/locale/en-US.json
-index 0c28fb0c..1f53831e 100644
+index 0c28fb0..1f53831 100644
 --- a/electron/src/locale/en-US.json
 +++ b/electron/src/locale/en-US.json
 @@ -64,6 +64,7 @@
@@ -11,7 +26,7 @@ index 0c28fb0c..1f53831e 100644
    "menuSupport": "Support Website",
    "menuSwitchAccount": "Switch to Account {accountIndex}",
 diff --git a/electron/src/mainProcess.ts b/electron/src/mainProcess.ts
-index 27c72cec..8cbb14db 100644
+index 27c72ce..8cbb14d 100644
 --- a/electron/src/mainProcess.ts
 +++ b/electron/src/mainProcess.ts
 @@ -140,7 +140,12 @@ const argv = minimist(process.argv.slice(1));
@@ -97,7 +112,7 @@ index 27c72cec..8cbb14db 100644
      bindIpcEvents,
      ensureMainProcessLogFile() {
 diff --git a/electron/src/managed/ManagedConfig.test.main.ts b/electron/src/managed/ManagedConfig.test.main.ts
-index cdbe0c81..d9ce84b2 100644
+index cdbe0c8..d9ce84b 100644
 --- a/electron/src/managed/ManagedConfig.test.main.ts
 +++ b/electron/src/managed/ManagedConfig.test.main.ts
 @@ -21,6 +21,7 @@ import {fake, replace, restore} from 'sinon';
@@ -175,7 +190,7 @@ index cdbe0c81..d9ce84b2 100644
      assert.deepStrictEqual(getManagedConfig(), {applockOverride: false});
    });
 diff --git a/electron/src/managed/ManagedConfig.ts b/electron/src/managed/ManagedConfig.ts
-index a8b4effb..47cf2f2c 100644
+index a8b4eff..47cf2f2 100644
 --- a/electron/src/managed/ManagedConfig.ts
 +++ b/electron/src/managed/ManagedConfig.ts
 @@ -17,6 +17,7 @@
@@ -198,7 +213,7 @@ index a8b4effb..47cf2f2c 100644
  
 diff --git a/electron/src/managed/backends/linux.ts b/electron/src/managed/backends/linux.ts
 new file mode 100644
-index 00000000..1fb84bc1
+index 0000000..1fb84bc
 --- /dev/null
 +++ b/electron/src/managed/backends/linux.ts
 @@ -0,0 +1,41 @@
@@ -244,7 +259,7 @@ index 00000000..1fb84bc1
 +  }
 +}
 diff --git a/electron/src/managed/constants.ts b/electron/src/managed/constants.ts
-index 07bf4720..9c470d65 100644
+index 07bf472..9c470d6 100644
 --- a/electron/src/managed/constants.ts
 +++ b/electron/src/managed/constants.ts
 @@ -35,3 +35,6 @@ export const APPLOCK_OVERRIDE_KEY = 'applockOverride';
@@ -255,7 +270,7 @@ index 07bf4720..9c470d65 100644
 +/** Linux: machine-wide managed config file holding the `APPLOCK_OVERRIDE_KEY` flag. */
 +export const LINUX_MANAGED_CONFIG_PATH = '/etc/wire/managed.json';
 diff --git a/electron/src/menu/TrayHandler.ts b/electron/src/menu/TrayHandler.ts
-index 0ccae9fe..dd13d63e 100644
+index 0ccae9f..dd13d63 100644
 --- a/electron/src/menu/TrayHandler.ts
 +++ b/electron/src/menu/TrayHandler.ts
 @@ -22,6 +22,7 @@ import {app, BrowserWindow, Menu, NativeImage, nativeImage, Tray} from 'electron
@@ -288,7 +303,7 @@ index 0ccae9fe..dd13d63e 100644
  
      this.icons = {
 diff --git a/electron/src/menu/system.test.main.ts b/electron/src/menu/system.test.main.ts
-index 04156e07..b619f1a4 100644
+index 04156e0..b619f1a 100644
 --- a/electron/src/menu/system.test.main.ts
 +++ b/electron/src/menu/system.test.main.ts
 @@ -29,8 +29,8 @@ import * as EnvironmentUtil from '../runtime/EnvironmentUtil';
@@ -303,7 +318,7 @@ index 04156e07..b619f1a4 100644
  
  function collectMenuAccelerators(menuItems: MenuItemConstructorOptions[]): string[] {
 diff --git a/electron/src/menu/system.ts b/electron/src/menu/system.ts
-index 8f84ca93..c73d451b 100644
+index 8f84ca9..c73d451 100644
 --- a/electron/src/menu/system.ts
 +++ b/electron/src/menu/system.ts
 @@ -36,12 +36,14 @@ import {SettingsType} from '../settings/SettingsType';
@@ -457,8 +472,103 @@ index 8f84ca93..c73d451b 100644
 +    globalShortcut.unregisterAll();
 +  }
  };
+diff --git a/electron/src/preload/menu/preload-about.test.renderer.ts b/electron/src/preload/menu/preload-about.test.renderer.ts
+index ffc28e5..eb291a7 100644
+--- a/electron/src/preload/menu/preload-about.test.renderer.ts
++++ b/electron/src/preload/menu/preload-about.test.renderer.ts
+@@ -84,4 +84,49 @@ describe('loadedAboutScreen', () => {
+     assert.strictEqual(webappAVSVersionElement.textContent, '');
+     assert.strictEqual(sendSpy.calledOnceWith(EVENT_TYPE.ABOUT.LOCALE_VALUES, []), true);
+   });
++
++  it('renders optional Linux build info and repo link when provided', () => {
++    document.body.innerHTML = `
++      <p id="linuxBuildRow" hidden><span id="linuxBuild"></span></p>
++      <p id="linuxRepoRow" hidden><a id="linuxBuildLink" href="#"></a></p>
++    `;
++
++    loadedAboutScreen(null, {
++      copyright: '&copy; Wire Swiss GmbH',
++      electronVersion: '3.46.5382',
++      linuxBuild: 'Unofficial AppImage · v3.46.5382 (Electron 43.1.1)',
++      linuxRepoUrl: 'https://github.com/nichu42/wire-desktop-linux',
++      productName: 'Wire',
++      webappVersion: '2019.04.10.0901',
++    });
++
++    const buildRow = document.getElementById('linuxBuildRow');
++    const buildElement = document.getElementById('linuxBuild');
++    const repoRow = document.getElementById('linuxRepoRow');
++    const buildLink = document.getElementById('linuxBuildLink');
++
++    assert.strictEqual(buildRow?.hidden, false);
++    assert.strictEqual(buildElement?.textContent, 'Unofficial AppImage · v3.46.5382 (Electron 43.1.1)');
++    assert.strictEqual(repoRow?.hidden, false);
++    assert.strictEqual(buildLink?.getAttribute('href'), 'https://github.com/nichu42/wire-desktop-linux');
++    assert.strictEqual(buildLink?.textContent, 'github.com/nichu42/wire-desktop-linux');
++  });
++
++  it('ignores non-https Linux repo URLs', () => {
++    document.body.innerHTML = `
++      <p id="linuxBuildRow" hidden><span id="linuxBuild"></span></p>
++      <p id="linuxRepoRow" hidden><a id="linuxBuildLink" href="#"></a></p>
++    `;
++
++    loadedAboutScreen(null, {
++      copyright: '&copy; Wire Swiss GmbH',
++      electronVersion: '3.46.5382',
++      linuxRepoUrl: 'http://example.com',
++      productName: 'Wire',
++      webappVersion: '2019.04.10.0901',
++    });
++
++    assert.strictEqual(document.getElementById('linuxBuildRow')?.hidden, true);
++    assert.strictEqual(document.getElementById('linuxRepoRow')?.hidden, true);
++  });
+ });
+diff --git a/electron/src/preload/menu/preload-about.ts b/electron/src/preload/menu/preload-about.ts
+index 8abbb92..6a54fc9 100644
+--- a/electron/src/preload/menu/preload-about.ts
++++ b/electron/src/preload/menu/preload-about.ts
+@@ -40,6 +40,8 @@ ipcRenderer.once(EVENT_TYPE.ABOUT.LOCALE_RENDER, (_event, labels: Record<string,
+ interface Details {
+   copyright: string;
+   electronVersion: string;
++  linuxBuild?: string;
++  linuxRepoUrl?: string;
+   productName: string;
+   webappVersion: string;
+   webappAVSVersion?: string;
+@@ -75,6 +77,27 @@ export function loadedAboutScreen(_event: unknown, details: Details): void {
+     copyrightElement.textContent = details.copyright;
+   }
+ 
++  const {linuxBuild, linuxRepoUrl} = details;
++  const linuxBuildRow = document.getElementById('linuxBuildRow');
++  const linuxBuildElement = document.getElementById('linuxBuild');
++  if (linuxBuildRow !== null && linuxBuildElement !== null && linuxBuild) {
++    linuxBuildElement.textContent = linuxBuild;
++    linuxBuildRow.hidden = false;
++  }
++
++  const linuxRepoRow = document.getElementById('linuxRepoRow');
++  const linuxBuildLink = document.getElementById('linuxBuildLink');
++  if (
++    linuxRepoRow !== null &&
++    linuxBuildLink instanceof HTMLAnchorElement &&
++    typeof linuxRepoUrl === 'string' &&
++    linuxRepoUrl.startsWith('https://')
++  ) {
++    linuxBuildLink.href = linuxRepoUrl;
++    linuxBuildLink.textContent = linuxRepoUrl.replace(/^https:\/\//, '');
++    linuxRepoRow.hidden = false;
++  }
++
+   const logoElement = document.getElementById('logo');
+   if (logoElement instanceof HTMLImageElement) {
+     logoElement.src = '../img/logo.256.png';
 diff --git a/electron/src/runtime/EnvironmentUtil.ts b/electron/src/runtime/EnvironmentUtil.ts
-index 5efca9c5..00bb4bf9 100644
+index 5efca9c..00bb4bf 100644
 --- a/electron/src/runtime/EnvironmentUtil.ts
 +++ b/electron/src/runtime/EnvironmentUtil.ts
 @@ -75,11 +75,29 @@ export const app = {
@@ -492,7 +602,7 @@ index 5efca9c5..00bb4bf9 100644
    currentEnvironment = env;
    settings.save(SettingsType.ENV, env);
 diff --git a/electron/src/runtime/configurePortableUserData.ts b/electron/src/runtime/configurePortableUserData.ts
-index 59370d5b..4c36a559 100644
+index 59370d5..4c36a55 100644
 --- a/electron/src/runtime/configurePortableUserData.ts
 +++ b/electron/src/runtime/configurePortableUserData.ts
 @@ -38,6 +38,7 @@ function getPortableUserDataPathParameters(): PortableUserDataPathParameters {
@@ -504,7 +614,7 @@ index 59370d5b..4c36a559 100644
      portableModeEnabled: Boolean(commandLineArguments[config.ARGUMENT.PORTABLE]),
      userDataDirectoryArgument: getStringCommandLineArgument(commandLineArguments, config.ARGUMENT.USER_DATA_DIR),
 diff --git a/electron/src/runtime/portableUserData.test.main.ts b/electron/src/runtime/portableUserData.test.main.ts
-index b067dfda..de23977f 100644
+index b067dfd..de23977 100644
 --- a/electron/src/runtime/portableUserData.test.main.ts
 +++ b/electron/src/runtime/portableUserData.test.main.ts
 @@ -31,19 +31,21 @@ describe('portable user-data path', () => {
@@ -548,7 +658,7 @@ index b067dfda..de23977f 100644
        setUserDataPath: userDataPath => configuredUserDataPaths.push(userDataPath),
      });
 diff --git a/electron/src/runtime/portableUserData.ts b/electron/src/runtime/portableUserData.ts
-index e7ecf338..bcc35af2 100644
+index e7ecf33..bcc35af 100644
 --- a/electron/src/runtime/portableUserData.ts
 +++ b/electron/src/runtime/portableUserData.ts
 @@ -25,6 +25,7 @@ export type PortableUserDataPathParameters = {
@@ -571,7 +681,7 @@ index e7ecf338..bcc35af2 100644
  
    return Maybe.nothing<string>();
 diff --git a/electron/src/settings/SettingsType.ts b/electron/src/settings/SettingsType.ts
-index 3aecfd32..93b29a62 100644
+index 3aecfd3..93b29a6 100644
 --- a/electron/src/settings/SettingsType.ts
 +++ b/electron/src/settings/SettingsType.ts
 @@ -58,6 +58,8 @@ export enum SettingsType {
@@ -583,3 +693,38 @@ index 3aecfd32..93b29a62 100644
    /** At which part of the screen shall the app be initially rendered? */
    WINDOW_BOUNDS = 'bounds',
  }
+diff --git a/electron/src/settings/config.ts b/electron/src/settings/config.ts
+index 91e9a28..677b268 100644
+--- a/electron/src/settings/config.ts
++++ b/electron/src/settings/config.ts
+@@ -30,6 +30,8 @@ interface WireJson {
+   environment: 'internal' | 'production' | 'wire-gov';
+   legalUrl: string;
+   licensesUrl: string;
++  linuxBuild?: string;
++  linuxRepoUrl?: string;
+   maximumAccounts: string;
+   name: string;
+   nameShort: string;
+diff --git a/electron/src/window/AboutWindow.ts b/electron/src/window/AboutWindow.ts
+index d14796b..6d8e62f 100644
+--- a/electron/src/window/AboutWindow.ts
++++ b/electron/src/window/AboutWindow.ts
+@@ -51,7 +51,7 @@ const ABOUT_WINDOW_ALLOWLIST = [
+ const PRELOAD_JS = path.join(APP_PATH, 'dist/preload/menu/preload-about.js');
+ 
+ const WINDOW_SIZE = {
+-  HEIGHT: 256,
++  HEIGHT: 304,
+   WIDTH: 304,
+ };
+ 
+@@ -141,6 +141,8 @@ function renderAboutWindow(activeWebappVersions: WebappVersions): void {
+   aboutWindow.webContents.send(EVENT_TYPE.ABOUT.LOADED, {
+     copyright: config.copyright,
+     electronVersion: config.version,
++    linuxBuild: config.linuxBuild,
++    linuxRepoUrl: config.linuxRepoUrl,
+     productName: config.name,
+     webappVersion: activeWebappVersions.webappVersion,
+     webappAVSVersion: activeWebappVersions.webappAVSVersion,

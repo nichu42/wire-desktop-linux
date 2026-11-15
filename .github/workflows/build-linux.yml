@@ -309,8 +309,12 @@ jobs:
 
       - name: Lint scripts
         run: |
-          shellcheck install.sh tools/release-notes.sh tools/smoke-test.sh
+          shellcheck install.sh tools/release-notes.sh tools/smoke-test.sh \
+            tools/flatpak-prepare.sh tools/flatpak-repo.sh tools/flatpak-keygen.sh \
+            tools/flatpak-dependencies.sh tools/smoke-test-flatpak.sh \
+            flatpak/wire-desktop-flatpak.sh
           for file in tools/*.mjs; do node --check "src/$file"; done
+          node --check flatpak/electron-builder.config.cjs
 
       - uses: reviewdog/action-actionlint@619a81ec64ff8c0211cd6146eb2b21e8f1d7f440 # v1.81.1
         with:
@@ -325,6 +329,7 @@ jobs:
           advanced-security: false
           inputs: |
             .github/workflows/build-linux.yml
+            .github/workflows/flatpak.yml
             .github/workflows/lint.yml
             .github/workflows/scorecard.yml
             .github/workflows/keepalive.yml
@@ -342,6 +347,10 @@ jobs:
 
       - name: Stamp production configuration
         working-directory: src
+        env:
+          LINUX_BUILD: "Unofficial AppImage · ${{ needs.resolve.outputs.release_tag }} (Electron ${{ needs.resolve.outputs.electron }})"
+          LINUX_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          URL_ABOUT_RELEASES: ${{ github.server_url }}/${{ github.repository }}/releases
         run: node tools/stamp-config.mjs
 
       - name: Build AppImage (latest electron-builder, fallback upstream)

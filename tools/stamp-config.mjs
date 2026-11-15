@@ -65,10 +65,11 @@ const baseVersion = String(defaults.version || packageJson.version || '0').repla
 const version = `${baseVersion}.${buildNumber}`;
 const name = read('APP_NAME', defaults.name);
 const maximumAccounts = String(read('APP_MAXIMUM_ACCOUNTS', defaults.maximumAccounts));
+const defaultRepoUrl = 'https://github.com/nichu42/wire-desktop-linux';
 
 const config = {
   ...defaults,
-  aboutReleasesUrl: read('URL_ABOUT_RELEASES', defaults.aboutReleasesUrl),
+  aboutReleasesUrl: process.env.URL_ABOUT_RELEASES || `${defaultRepoUrl}/releases`,
   aboutUpdatesUrl: read('URL_ABOUT_UPDATES', defaults.aboutUpdatesUrl),
   adminUrl: read('URL_ADMIN', defaults.adminUrl),
   appBase: read('APP_BASE', defaults.appBase),
@@ -83,6 +84,8 @@ const config = {
   environment: 'production',
   legalUrl: read('URL_LEGAL', defaults.legalUrl),
   licensesUrl: read('URL_LICENSES', defaults.licensesUrl),
+  linuxBuild: process.env.LINUX_BUILD || `Unofficial Linux build (${version})`,
+  linuxRepoUrl: process.env.LINUX_REPO_URL || defaultRepoUrl,
   maximumAccounts,
   name,
   nameShort: read('APP_NAME_SHORT', defaults.nameShort),
