@@ -159,7 +159,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            flatpak flatpak-builder xvfb x11-utils dbus-x11 gnupg jq curl xz-utils \
+            flatpak flatpak-builder elfutils xvfb x11-utils dbus-x11 gnupg jq curl xz-utils \
             python3-pip pipx desktop-file-utils
           flatpak remote-add --user --if-not-exists flathub \
             https://dl.flathub.org/repo/flathub.flatpakrepo
