@@ -25,12 +25,17 @@ Flatpak repository.
 ## Invariants
 
 1. Build from upstream release tags, not `dev` HEAD.
-2. The only upstream source change is `patches/01-linux-runtime.patch`, applied
-   with `git apply --3way`. If it fails, continue unpatched and say so in the
-   release notes; never delete the tests to make it apply.
-3. Never publish without the full gate: upstream tests, artifact assertions,
-   runtime smoke on Ubuntu 24.04 and 22.04, and draft-asset verification.
-   Releases are created as drafts and only published after verification.
+2. The only upstream source changes are `patches/01-linux-runtime.patch` (every
+   build, applied with `git apply --3way`) and, for the Flatpak,
+   `patches/02-flatpak-runtime.patch`. If the AppImage patch fails, continue
+   unpatched and say so in the release notes; never delete the tests to make it
+   apply. The Flatpak fails closed when either patch does not apply.
+3. Never publish without that format's full gate. AppImage: upstream tests,
+   artifact assertions, runtime smoke on Ubuntu 24.04 and 22.04, and
+   draft-asset verification; releases are created as drafts and only published
+   after verification. Flatpak: offline source build, `assert-flatpak`
+   assertions, manifest/AppStream lint, and a signed-repo install plus smoke
+   test. The Flatpak has no draft step and does not run the upstream suite.
 4. The `build` job is read-only: `contents: read`, `persist-credentials:
    false`, no `GH_TOKEN` in its environment. Only `publish` gets write
    permissions. Never give the build job a write token.
@@ -132,10 +137,11 @@ release; a failure creates a `Canary build failure` issue.
 `flatpak.yml` triggers on the daily 06:37 UTC schedule, `workflow_dispatch`
 (`tag`, `force`, `publish`) and pushes to the Flatpak files. Jobs:
 `resolve` → `build` (offline source build, test-signed repo, smoke, manifest/
-AppStream lint) → `publish` (production GPG signing, signed install/smoke,
-attestation, Pages). The scheduled/dispatched `dependency-check` job reports
-Electron, Freedesktop runtime, BaseApp and Node SDK support and opens or closes
-a `flatpak-dependency` issue; it never gates the build.
+AppStream lint) → `publish` (artifact-to-release check, production GPG signing,
+signed repo and single-file bundle install/smoke, attestation, Pages, and a
+check of the deployed repository). The scheduled/dispatched `dependency-check`
+job reports Electron, Freedesktop runtime, BaseApp and Node SDK support and
+opens or closes a `flatpak-dependency` issue; it never gates the build.
 A skipped resolve means the published tag/fingerprint is current. Push runs do
 not publish; a scheduled failure opens a `flatpak-failure` issue and a
 successful scheduled run closes it.

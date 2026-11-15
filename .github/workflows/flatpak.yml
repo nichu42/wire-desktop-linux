@@ -291,6 +291,23 @@ jobs:
           name: flatpak-build
           path: flatpak/dist
 
+      - name: Verify the artifact matches the resolved release
+        run: |
+          set -euo pipefail
+          # Never hand the production signing key a build that does not belong
+          # to the release this run resolved.
+          if ! jq -e \
+            --arg app_id "$APP_ID" \
+            --arg tag "$TAG" \
+            --arg version "$VERSION" \
+            --arg fingerprint "$FINGERPRINT" \
+            '.app_id == $app_id and .upstream_tag == $tag
+              and .version == $version and .flatpak_fingerprint == $fingerprint' \
+            flatpak/dist/build-info.json >/dev/null; then
+            echo "::error::The uploaded build does not match the resolved release ($TAG)"
+            exit 1
+          fi
+
       - name: Import the Flatpak signing key
         env:
           FLATPAK_GPG_PRIVATE_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
@@ -329,6 +346,15 @@ jobs:
           flatpak install --user -y --noninteractive wire-publish "$APP_ID"
           xvfb-run -a bash tools/smoke-test-flatpak.sh "$APP_ID"
 
+      - name: Install the published bundle without a key file and smoke-test it
+        run: |
+          set -euo pipefail
+          # The bundle is a documented install path and is published to Pages;
+          # users must be able to install it without --gpg-file.
+          flatpak uninstall --user -y --noninteractive "$APP_ID"
+          xvfb-run -a bash tools/smoke-test-flatpak.sh "$APP_ID" \
+            "flatpak/dist/Wire-${VERSION}-x86_64.flatpak"
+
       - name: Attest the Flatpak bundle
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
@@ -344,6 +370,15 @@ jobs:
           cp flatpak/dist/io.github.nichu42.wire-desktop-linux.yml public/flatpak/
           cp flatpak/dist/generated-sources.json public/flatpak/
           touch public/.nojekyll
+
+          # The repo and the bundle are each a compressed copy of the app.
+          # Fail here rather than at the GitHub Pages 1 GB limit.
+          site_bytes="$(du -sb public | cut -f1)"
+          echo "Pages payload: $((site_bytes / 1024 / 1024)) MiB"
+          if [ "$site_bytes" -gt $((900 * 1024 * 1024)) ]; then
+            echo "::error::Pages payload is over 900 MiB; the GitHub Pages limit is 1 GB"
+            exit 1
+          fi
 
           gpg_key="$(gpg --homedir "$FLATPAK_GPG_HOME" --export "$FLATPAK_GPG_KEY_ID" | base64 -w0)"
           cat > public/flatpak/wire.flatpakrepo <<EOF
@@ -384,6 +419,35 @@ jobs:
           path: public
       - id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+      - name: Verify the published repository
+        run: |
+          set -euo pipefail
+          # The local repo install above proves the artifact; this proves what
+          # users actually fetch, including the published summary signature.
+          published_info="$RUNNER_TEMP/published-build-info.json"
+          published_refs="$RUNNER_TEMP/published-refs.txt"
+          ready=false
+          for _ in $(seq 1 20); do
+            if curl -fsS "$PAGES_URL/build-info.json" -o "$published_info" &&
+              flatpak remote-add --user --if-not-exists wire-published \
+                "$PAGES_URL/wire.flatpakrepo" &&
+              flatpak remote-ls --user wire-published --columns=ref > "$published_refs" &&
+              grep -q "app/$APP_ID/" "$published_refs"; then
+              ready=true
+              break
+            fi
+            sleep 15
+          done
+          if [ "$ready" != true ]; then
+            echo "::error::The published Flatpak repository is not reachable at $PAGES_URL"
+            exit 1
+          fi
+          if ! jq -e --arg version "$VERSION" '.version == $version' "$published_info" >/dev/null; then
+            echo "::error::$PAGES_URL/build-info.json does not report version $VERSION"
+            exit 1
+          fi
+          echo "Published $APP_ID $VERSION; remote summary and signature verified"
 
   dependency-check:
     name: Check Flatpak dependency freshness
@@ -426,12 +490,17 @@ jobs:
             0) echo "status=current" >> "$GITHUB_OUTPUT" ;;
             1) echo "status=outdated" >> "$GITHUB_OUTPUT" ;;
             *)
+              # The script writes its report before exiting 2; keep it and
+              # prepend why the result is incomplete instead of overwriting it.
               {
                 echo "## Flatpak dependency check incomplete"
                 echo
                 echo "One or more lookups failed (exit $rc); open issues are left"
-                echo "untouched. See the workflow log for the failing lookup."
-              } > flatpak-dependency-report.md
+                echo "untouched. The report below may be incomplete."
+                echo
+                cat flatpak-dependency-report.md 2>/dev/null || true
+              } > flatpak-dependency-report.incomplete.md
+              mv flatpak-dependency-report.incomplete.md flatpak-dependency-report.md
               echo "status=incomplete" >> "$GITHUB_OUTPUT"
               ;;
           esac

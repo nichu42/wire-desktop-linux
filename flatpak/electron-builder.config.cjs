@@ -18,8 +18,8 @@ module.exports = {
   extraFiles: [],
   files: [
     ...base.files,
-    // The Flatpak packaging files are copied into the upstream tree; never
-    // pack them into app.asar.
+    // The Flatpak sources live at the build root, not in the upstream tree;
+    // keep the exclude so a future in-tree copy can never reach app.asar.
     '!flatpak{,/**}',
   ],
   linux: {

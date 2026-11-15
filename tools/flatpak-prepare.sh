@@ -80,14 +80,20 @@ if ! curl -fsI "https://raw.githubusercontent.com/wireapp/wire-desktop/$commit/.
   exit 1
 fi
 
-config_spec="$(jq -r '.dependencies["wire-web-config-production"]' "$tmp/app-config.json")"
+config_spec="$(jq -r '.dependencies["wire-web-config-production"] // empty' "$tmp/app-config.json")"
+if [ -z "$config_spec" ]; then
+  echo "flatpak-prepare: app-config/package.json has no wire-web-config-production pin" >&2
+  exit 1
+fi
 config_repo="${config_spec%%#*}"
 config_ref="${config_spec##*#}"
 if [ -z "$config_ref" ] || [ "$config_ref" = "$config_spec" ]; then
   echo "flatpak-prepare: could not parse production config pin: $config_spec" >&2
   exit 1
 fi
-config_url="${config_repo}/archive/refs/tags/${config_ref}.tar.gz"
+# `archive/<ref>.tar.gz` resolves tags, branches and commit SHAs alike; the
+# `refs/tags/` form breaks if upstream ever pins a commit.
+config_url="${config_repo}/archive/${config_ref}.tar.gz"
 curl -fsSL "$config_url" -o "$tmp/config.tar.gz"
 config_sha256="$(sha256sum "$tmp/config.tar.gz" | cut -d' ' -f1)"
 

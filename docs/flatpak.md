@@ -122,8 +122,12 @@ https://nichu42.github.io/wire-desktop-linux/flatpak/
 Publishing is draft-free but gated: the build job exports and installs a
 test-signed repository, runs the smoke test and lints the manifest and
 AppStream metadata; only the separate publish job receives the signing key. It
-re-exports the uploaded build directory with the production key, installs and
-smoke-tests the signed repository, attests the bundle, and then deploys Pages.
+first checks that the uploaded build belongs to the release the run resolved,
+re-exports it with the production key, installs and smoke-tests the signed
+repository, installs the single-file bundle without a key file and smoke-tests
+that too, attests the bundle, and deploys Pages. The deploy fails if the
+assembled site would exceed 900 MB, and a final step fetches the deployed
+repository back and verifies its version and summary signature.
 
 ## CI
 
