@@ -430,6 +430,9 @@ jobs:
           ready=false
           for _ in $(seq 1 20); do
             if curl -fsS "$PAGES_URL/build-info.json" -o "$published_info" &&
+              jq -e --arg version "$VERSION" --arg fingerprint "$FINGERPRINT" \
+                '.version == $version and .flatpak_fingerprint == $fingerprint' \
+                "$published_info" >/dev/null &&
               flatpak remote-add --user --if-not-exists wire-published \
                 "$PAGES_URL/wire.flatpakrepo" &&
               flatpak remote-ls --user wire-published --columns=ref > "$published_refs" &&
@@ -440,11 +443,7 @@ jobs:
             sleep 15
           done
           if [ "$ready" != true ]; then
-            echo "::error::The published Flatpak repository is not reachable at $PAGES_URL"
-            exit 1
-          fi
-          if ! jq -e --arg version "$VERSION" '.version == $version' "$published_info" >/dev/null; then
-            echo "::error::$PAGES_URL/build-info.json does not report version $VERSION"
+            echo "::error::The published Flatpak repository at $PAGES_URL did not serve $VERSION ($FINGERPRINT)"
             exit 1
           fi
           echo "Published $APP_ID $VERSION; remote summary and signature verified"
