@@ -36,7 +36,7 @@ fi
 VERSION="${BASH_REMATCH[1]}"
 BUILD="${VERSION##*.}"
 
-for cmd in curl git jq sha256sum flatpak-node-generator; do
+for cmd in curl git jq sha256sum node flatpak-node-generator; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "flatpak-prepare: missing required command: $cmd" >&2
     exit 1

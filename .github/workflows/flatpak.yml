@@ -87,7 +87,7 @@ jobs:
           fingerprint=$(
             {
               printf 'app_id=%s\nruntime=%s\nnode=%s\n' \
-                "$APP_ID" "$RUNTIME_VERSION" "${NODE_VERSION:-22}"
+                "$APP_ID" "$RUNTIME_VERSION" "${NODE_VERSION:-24}"
               find flatpak patches tools .github/workflows/flatpak.yml -type f \
                 ! -path 'flatpak/io.github.nichu42.wire-desktop-linux.yml' \
                 ! -name 'generated-sources.json' \
@@ -149,6 +149,7 @@ jobs:
       VERSION: ${{ needs.resolve.outputs.version }}
       BUILD: ${{ needs.resolve.outputs.build }}
       FINGERPRINT: ${{ needs.resolve.outputs.fingerprint }}
+      RUN_ID: ${{ github.run_id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -185,7 +186,8 @@ jobs:
       - name: Create a test-signed repository and install it
         run: |
           set -euo pipefail
-          export GNUPGHOME="$(mktemp -d)"
+          GNUPGHOME="$(mktemp -d)"
+          export GNUPGHOME
           gpg --batch --passphrase '' --quick-generate-key \
             "Wire Flatpak Test <flatpak-test@example.invalid>" ed25519 sign 1d
           key_id="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/ {print $5; exit}')"
@@ -232,7 +234,7 @@ jobs:
             --arg fingerprint "$FINGERPRINT" \
             --arg bundle_sha256 "$bundle_sha256" \
             --arg built_at "$(date -u +%FT%TZ)" \
-            --arg run_id "${{ github.run_id }}" \
+            --arg run_id "$RUN_ID" \
             '$prepared[0] + {
               flatpak_fingerprint: $fingerprint,
               bundle_sha256: $bundle_sha256,
@@ -421,26 +423,32 @@ jobs:
           rc=$?
           set -e
           case "$rc" in
-            0) echo "outdated=false" >> "$GITHUB_OUTPUT" ;;
-            1) echo "outdated=true" >> "$GITHUB_OUTPUT" ;;
+            0) echo "status=current" >> "$GITHUB_OUTPUT" ;;
+            1) echo "status=outdated" >> "$GITHUB_OUTPUT" ;;
             *)
               {
-                echo "## Flatpak dependency check failed"
+                echo "## Flatpak dependency check incomplete"
                 echo
-                echo "The check exited with status $rc; see the workflow log."
+                echo "One or more lookups failed (exit $rc); open issues are left"
+                echo "untouched. See the workflow log for the failing lookup."
               } > flatpak-dependency-report.md
-              echo "outdated=true" >> "$GITHUB_OUTPUT"
+              echo "status=incomplete" >> "$GITHUB_OUTPUT"
               ;;
           esac
 
       - name: Publish the dependency report
         env:
-          OUTDATED: ${{ steps.check.outputs.outdated }}
+          STATUS: ${{ steps.check.outputs.status }}
         run: |
           set -euo pipefail
           cat flatpak-dependency-report.md >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "$OUTDATED" != "true" ]; then
+          if [ "$STATUS" = "incomplete" ]; then
+            echo "::warning::Flatpak dependency lookup was incomplete; open issues were left untouched."
+            exit 0
+          fi
+
+          if [ "$STATUS" = "current" ]; then
             gh issue list --label flatpak-dependency --state open --json number \
               --jq '.[].number' |
               while read -r number; do

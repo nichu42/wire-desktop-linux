@@ -154,9 +154,11 @@ and reports:
 - the Node SDK extension branch on Flathub and the Node end-of-life schedule.
 
 Findings open or update a `flatpak-dependency` issue and are added to the run
-summary; a clean run closes the issue. The check is advisory: it does not gate
-the build or publish, because the Flatpak cannot move upstream's Electron pin
-without a documented exception.
+summary; a clean run closes the issue. If a registry, Flathub or release-schedule
+lookup fails, the check exits as incomplete, reports a warning and leaves open
+issues untouched. The check is advisory: it does not gate the build or publish,
+because the Flatpak cannot move upstream's Electron pin without a documented
+exception.
 
 `RUNTIME_VERSION` and `NODE_VERSION` are defined once in
 `.github/workflows/flatpak.yml` and mirrored by the defaults in

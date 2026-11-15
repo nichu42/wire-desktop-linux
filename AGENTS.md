@@ -95,6 +95,7 @@ Flatpak repository.
 | `tools/assert-flatpak.mjs` | Asserts the installed `/app` tree (asar, fuses, metadata, size) |
 | `tools/smoke-test-flatpak.sh` | `flatpak run` runtime smoke test (Xvfb) |
 | `docs/flatpak.md` | Flatpak build, signing and repository operations |
+| `docs/flatpak-plan.md` | Flatpak distribution decision record |
 | `tools/stamp-config.mjs` | Writes production `electron/wire.json` + `package.json` |
 | `tools/electron-builder.config.cjs` | AppImage packaging, files, desktop entry, fuses hook |
 | `tools/after-pack.cjs` | Flips the production Electron fuses |

@@ -12,7 +12,8 @@
 #     [--node 24] [--report FILE]
 #
 # The Flathub checks need flatpak with a configured `flathub` remote.
-# Exit status: 0 = all current, 1 = findings, 2 = usage or lookup error.
+# Exit status: 0 = all current, 1 = findings, 2 = incomplete lookup
+# (a registry, Flathub or release-schedule query failed).
 
 set -euo pipefail
 
@@ -74,6 +75,7 @@ yarn_pin="$(jq -r '.packageManager // empty' "$tmp/package.json" | sed -n 's/^ya
 
 findings=()
 notes=()
+lookup_failed=false
 
 # Electron: the Flatpak follows the upstream pin, which is fine while the
 # major is inside the window the AppImage policy uses (latest major - 2).
@@ -82,6 +84,8 @@ latest_electron=""
 oldest_supported=""
 if registry="$(curl -fsSL https://registry.npmjs.org/electron 2>/dev/null)"; then
   latest_electron="$(jq -r '.["dist-tags"].latest // empty' <<<"$registry")"
+else
+  lookup_failed=true
 fi
 if [ -n "$latest_electron" ] && [ -n "$electron_pin" ]; then
   latest_major="${latest_electron%%.*}"
@@ -97,6 +101,7 @@ if [ -n "$latest_electron" ] && [ -n "$electron_pin" ]; then
     electron_status="✅ current"
   fi
 else
+  lookup_failed=true
   notes+=("Could not resolve the Electron support window from the npm registry.")
 fi
 
@@ -109,7 +114,15 @@ node_status="❔ unknown"
 newest_runtime=""
 newest_node=""
 refs="$tmp/refs"
-if flatpak remote-ls --user flathub --columns=ref,branch >"$refs" 2>"$tmp/refs.err"; then
+# Use whichever Flathub installation is configured; a host may only have the
+# system remote.
+flathub_args=()
+if flatpak remotes --user --columns=name 2>/dev/null | grep -qx flathub; then
+  flathub_args=(--user)
+elif flatpak remotes --system --columns=name 2>/dev/null | grep -qx flathub; then
+  flathub_args=(--system)
+fi
+if flatpak remote-ls "${flathub_args[@]}" flathub --columns=ref,branch >"$refs" 2>"$tmp/refs.err"; then
   mapfile -t runtime_branches < <(
     awk -F'\t' '$1 ~ /^runtime\/org\.freedesktop\.Platform\/x86_64\// { print $2 }' "$refs" |
       sort -Vu
@@ -148,8 +161,10 @@ if flatpak remote-ls --user flathub --columns=ref,branch >"$refs" 2>"$tmp/refs.e
   fi
 
   mapfile -t node_majors < <(
-    awk -F'\t' '$1 ~ /Sdk\.Extension\.node[0-9]+\/x86_64\// { print $1 }' "$refs" |
-      sed -E 's#.*node([0-9]+)/.*#\1#' | sort -nu
+    awk -F'\t' -v suffix="/x86_64/$RUNTIME_VERSION" '
+      $1 ~ /Sdk\.Extension\.node[0-9]+\/x86_64\// &&
+        substr($1, length($1) - length(suffix) + 1) == suffix { print $1 }
+    ' "$refs" | sed -E 's#.*node([0-9]+)/.*#\1#' | sort -nu
   )
   if [ "${#node_majors[@]}" -gt 0 ]; then
     newest_node="${node_majors[-1]}"
@@ -162,14 +177,25 @@ if flatpak remote-ls --user flathub --columns=ref,branch >"$refs" 2>"$tmp/refs.e
     findings+=("org.freedesktop.Sdk.Extension.node$NODE_VERSION is not available for runtime $RUNTIME_VERSION on Flathub.")
   fi
 else
+  lookup_failed=true
   notes+=("Could not query Flathub: $(tail -1 "$tmp/refs.err" 2>/dev/null || echo 'flatpak remote-ls failed').")
 fi
 
 node_eol=""
+eol_json=""
 if eol_json="$(curl -fsSL https://endoflife.date/api/nodejs.json 2>/dev/null)"; then
   node_eol="$(jq -r --arg c "$NODE_VERSION" '.[] | select(.cycle == $c) | .eol' <<<"$eol_json" | head -1)"
+else
+  lookup_failed=true
+  notes+=("Could not fetch the Node release schedule from endoflife.date.")
 fi
-if [ -n "$node_eol" ] && [ "$node_eol" != "false" ] && [ "$node_eol" != "null" ]; then
+
+if [ "$node_eol" = "true" ]; then
+  findings+=("Node $NODE_VERSION is marked end-of-life by endoflife.date.")
+  if [ "$node_status" != "❌ extension missing" ]; then
+    node_status="❌ end of life"
+  fi
+elif [[ "$node_eol" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
   days_left=$((($(date -u -d "$node_eol" +%s) - $(date -u +%s)) / 86400))
   if [ "$days_left" -lt 0 ]; then
     findings+=("Node $NODE_VERSION reached end of life on $node_eol.")
@@ -182,7 +208,8 @@ if [ -n "$node_eol" ] && [ "$node_eol" != "false" ] && [ "$node_eol" != "null" ]
       node_status="⚠️ EOL in $days_left days"
     fi
   fi
-else
+elif [ "$node_eol" != "false" ] && [ "$node_eol" != "null" ] && [ -n "$eol_json" ]; then
+  lookup_failed=true
   notes+=("Could not determine the Node $NODE_VERSION release schedule.")
 fi
 if [ -n "$newest_node" ] && [ "$newest_node" -gt "$NODE_VERSION" ]; then
@@ -234,5 +261,9 @@ fi
 if [ "${#findings[@]}" -gt 0 ]; then
   echo "flatpak-dependencies: ${#findings[@]} finding(s)" >&2
   exit 1
+fi
+if [ "$lookup_failed" = "true" ]; then
+  echo "flatpak-dependencies: one or more lookups failed; result is incomplete" >&2
+  exit 2
 fi
 echo "flatpak-dependencies: all dependencies supported" >&2

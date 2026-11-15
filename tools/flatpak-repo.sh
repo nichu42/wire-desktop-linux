@@ -26,10 +26,12 @@ KEY_ID="${5:--}"
 GPG_HOME="${6:-${GNUPGHOME:-$HOME/.gnupg}}"
 OUTPUT_DIR="${7:-dist}"
 
-if [ ! -d "$BUILD_DIR/files" ]; then
-  echo "flatpak-repo: missing build directory: $BUILD_DIR" >&2
-  exit 1
-fi
+for entry in files export metadata; do
+  if [ ! -e "$BUILD_DIR/$entry" ]; then
+    echo "flatpak-repo: $BUILD_DIR is not a finalized build directory (missing $entry)" >&2
+    exit 1
+  fi
+done
 
 mkdir -p "$REPO_DIR" "$OUTPUT_DIR"
 
