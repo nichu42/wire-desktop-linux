@@ -140,6 +140,29 @@ they do not publish. Scheduled and manual runs publish unless `publish=false`.
 A scheduled failure opens or updates a `flatpak-failure` issue; a successful
 scheduled run closes open issues.
 
+## Dependency freshness
+
+The Flatpak follows the upstream tag's Electron and Yarn pins, so it can trail
+the AppImage. The `dependency-check` job runs on the daily schedule and on
+manual dispatches (it never runs on push and never receives the signing key)
+and reports:
+
+- the upstream Electron pin against npm's supported window, using the same
+  oldest-supported rule as the AppImage (latest major - 2);
+- the configured Freedesktop runtime and Electron2 BaseApp branches against
+  what Flathub publishes, plus the runtime branch age;
+- the Node SDK extension branch on Flathub and the Node end-of-life schedule.
+
+Findings open or update a `flatpak-dependency` issue and are added to the run
+summary; a clean run closes the issue. The check is advisory: it does not gate
+the build or publish, because the Flatpak cannot move upstream's Electron pin
+without a documented exception.
+
+`RUNTIME_VERSION` and `NODE_VERSION` are defined once in
+`.github/workflows/flatpak.yml` and mirrored by the defaults in
+`tools/flatpak-prepare.sh` and `tools/flatpak-render-manifest.mjs`. Both feed
+the build fingerprint, so changing either triggers a rebuild.
+
 ## Known limitations
 
 - **Autostart:** the Flatpak cannot write the host autostart directory. The

@@ -72,6 +72,10 @@ Flatpak repository.
 17. Keep the GitHub Pages repository URL and Flatpak app ID stable. A change
     breaks installed remotes; the app ID is fixed before the first public
     release.
+18. The Flatpak dependency check is advisory. It reports out-of-support
+    dependencies in a `flatpak-dependency` issue and must never gate the build
+    or publish. Electron still follows the upstream pin; moving it needs a
+    documented exception.
 
 ## Layout
 
@@ -87,6 +91,7 @@ Flatpak repository.
 | `tools/flatpak-render-manifest.mjs` | Fills the Flatpak manifest template |
 | `tools/flatpak-repo.sh` | Exports/signs the OSTree repo and builds a bundle |
 | `tools/flatpak-keygen.sh` | Generates the Flatpak signing key and prints the secrets |
+| `tools/flatpak-dependencies.sh` | Reports out-of-support Flatpak dependencies |
 | `tools/assert-flatpak.mjs` | Asserts the installed `/app` tree (asar, fuses, metadata, size) |
 | `tools/smoke-test-flatpak.sh` | `flatpak run` runtime smoke test (Xvfb) |
 | `docs/flatpak.md` | Flatpak build, signing and repository operations |
@@ -127,7 +132,9 @@ release; a failure creates a `Canary build failure` issue.
 (`tag`, `force`, `publish`) and pushes to the Flatpak files. Jobs:
 `resolve` → `build` (offline source build, test-signed repo, smoke, manifest/
 AppStream lint) → `publish` (production GPG signing, signed install/smoke,
-attestation, Pages).
+attestation, Pages). The scheduled/dispatched `dependency-check` job reports
+Electron, Freedesktop runtime, BaseApp and Node SDK support and opens or closes
+a `flatpak-dependency` issue; it never gates the build.
 A skipped resolve means the published tag/fingerprint is current. Push runs do
 not publish; a scheduled failure opens a `flatpak-failure` issue and a
 successful scheduled run closes it.
@@ -163,6 +170,7 @@ gh run list --repo nichu42/wire-desktop-linux --limit 5
 gh run watch <run-id> --repo nichu42/wire-desktop-linux --compact
 gh issue list --repo nichu42/wire-desktop-linux --label build-failure
 gh issue list --repo nichu42/wire-desktop-linux --label flatpak-failure
+gh issue list --repo nichu42/wire-desktop-linux --label flatpak-dependency
 ```
 
 ## Releases
@@ -302,6 +310,12 @@ Gear Lever; do not use both for the same install.
   objects to an object store and update the `.flatpakrepo` URL.
 - **Flatpak build failed on schedule**: check the `flatpak-failure` issue/run
   log; push a fix; a successful scheduled run closes it.
+- **Flatpak dependency drift**: the daily `dependency-check` job reports an
+  Electron pin outside npm's supported window, an EOL or outdated Freedesktop
+  runtime, or an EOL Node SDK extension. Bump `RUNTIME_VERSION` and
+  `NODE_VERSION` in `flatpak.yml` plus the defaults in `tools/flatpak-prepare.sh`
+  and `tools/flatpak-render-manifest.mjs` together, or document an Electron
+  exception.
 
 ## Repository settings
 

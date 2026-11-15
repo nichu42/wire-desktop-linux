@@ -11,7 +11,7 @@
 # Environment:
 #   RUNTIME_VERSION   Freedesktop runtime/BaseApp branch (default: 26.08)
 #   BASE_VERSION      Electron2 BaseApp branch (default: RUNTIME_VERSION)
-#   NODE_VERSION      Node SDK extension major (default: 22)
+#   NODE_VERSION      Node SDK extension major (default: 24)
 #   OUTPUT            Rendered manifest path
 
 set -euo pipefail
@@ -45,7 +45,7 @@ done
 
 RUNTIME_VERSION="${RUNTIME_VERSION:-26.08}"
 BASE_VERSION="${BASE_VERSION:-$RUNTIME_VERSION}"
-NODE_VERSION="${NODE_VERSION:-22}"
+NODE_VERSION="${NODE_VERSION:-24}"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT

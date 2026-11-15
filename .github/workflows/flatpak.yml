@@ -42,6 +42,7 @@ concurrency:
 env:
   APP_ID: io.github.nichu42.wire-desktop-linux
   RUNTIME_VERSION: '26.08'
+  NODE_VERSION: '24'
   PAGES_URL: https://nichu42.github.io/wire-desktop-linux/flatpak
 
 jobs:
@@ -381,6 +382,96 @@ jobs:
           path: public
       - id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+  dependency-check:
+    name: Check Flatpak dependency freshness
+    needs: [resolve]
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.resolve.outputs.tag }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install flatpak and Flathub
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends flatpak
+          flatpak remote-add --user --if-not-exists flathub \
+            https://dl.flathub.org/repo/flathub.flatpakrepo
+
+      - name: Check dependency support
+        id: check
+        run: |
+          set +e
+          bash tools/flatpak-dependencies.sh \
+            --tag "$TAG" \
+            --runtime "$RUNTIME_VERSION" \
+            --node "$NODE_VERSION" \
+            --report flatpak-dependency-report.md
+          rc=$?
+          set -e
+          case "$rc" in
+            0) echo "outdated=false" >> "$GITHUB_OUTPUT" ;;
+            1) echo "outdated=true" >> "$GITHUB_OUTPUT" ;;
+            *)
+              {
+                echo "## Flatpak dependency check failed"
+                echo
+                echo "The check exited with status $rc; see the workflow log."
+              } > flatpak-dependency-report.md
+              echo "outdated=true" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      - name: Publish the dependency report
+        env:
+          OUTDATED: ${{ steps.check.outputs.outdated }}
+        run: |
+          set -euo pipefail
+          cat flatpak-dependency-report.md >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$OUTDATED" != "true" ]; then
+            gh issue list --label flatpak-dependency --state open --json number \
+              --jq '.[].number' |
+              while read -r number; do
+                gh issue close "$number" \
+                  --comment "The Flatpak dependencies are current again: $RUN_URL"
+              done
+            exit 0
+          fi
+
+          echo "::warning::Flatpak dependencies need attention; see the flatpak-dependency issue."
+
+          gh label create flatpak-dependency --color B60205 \
+            --description "Flatpak dependency freshness" 2>/dev/null || true
+          {
+            cat flatpak-dependency-report.md
+            echo
+            echo "Workflow run: $RUN_URL"
+          } > flatpak-dependency-issue.md
+
+          existing=$(gh issue list --label flatpak-dependency --state open \
+            --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" \
+              --title "Flatpak dependencies need attention" \
+              --body-file flatpak-dependency-issue.md
+          else
+            gh issue create \
+              --title "Flatpak dependencies need attention" \
+              --body-file flatpak-dependency-issue.md \
+              --label flatpak-dependency
+          fi
 
   report-failure:
     name: Report Flatpak build failure
