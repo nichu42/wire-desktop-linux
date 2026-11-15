@@ -59,6 +59,9 @@ modules:
         BUILD_NUMBER: '@BUILD_NUMBER@'
         BUILD_DATE: '@BUILD_DATE@'
         ELECTRON_VERSION: '@ELECTRON_VERSION@'
+        LINUX_BUILD: 'Unofficial Flatpak · @APP_VERSION@ (Electron @ELECTRON_VERSION@)'
+        LINUX_REPO_URL: 'https://github.com/nichu42/wire-desktop-linux'
+        URL_ABOUT_RELEASES: 'https://nichu42.github.io/wire-desktop-linux/flatpak/'
     build-commands:
       # Apply the Linux runtime patch and the Flatpak-specific menu patch.
       # Both must apply: a Flatpak without them is not shipped.

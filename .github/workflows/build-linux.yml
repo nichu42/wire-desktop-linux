@@ -347,6 +347,10 @@ jobs:
 
       - name: Stamp production configuration
         working-directory: src
+        env:
+          LINUX_BUILD: "Unofficial AppImage · ${{ needs.resolve.outputs.release_tag }} (Electron ${{ needs.resolve.outputs.electron }})"
+          LINUX_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          URL_ABOUT_RELEASES: ${{ github.server_url }}/${{ github.repository }}/releases
         run: node tools/stamp-config.mjs
 
       - name: Build AppImage (latest electron-builder, fallback upstream)

@@ -67,6 +67,22 @@ if (exists(asarPath)) {
   check(wireJson.name === 'Wire', `wire.json name is ${wireJson.name}`);
   check(wireJson.environment === 'production', `wire.json environment is ${wireJson.environment}`);
   check(wireJson.version === expectedVersion, `wire.json version is ${wireJson.version}`);
+  check(
+    typeof wireJson.linuxBuild === 'string' && wireJson.linuxBuild.includes(expectedVersion),
+    `wire.json linuxBuild is ${wireJson.linuxBuild}`,
+  );
+  check(
+    typeof wireJson.linuxRepoUrl === 'string' &&
+      wireJson.linuxRepoUrl.startsWith('https://') &&
+      !wireJson.linuxRepoUrl.includes('wireapp/wire-desktop'),
+    `wire.json linuxRepoUrl is ${wireJson.linuxRepoUrl}`,
+  );
+  check(
+    typeof wireJson.aboutReleasesUrl === 'string' &&
+      wireJson.aboutReleasesUrl.startsWith('https://') &&
+      !wireJson.aboutReleasesUrl.includes('wireapp/wire-desktop'),
+    `wire.json aboutReleasesUrl is ${wireJson.aboutReleasesUrl}`,
+  );
   check(packageJson.productName === 'Wire', `productName is ${packageJson.productName}`);
   check(packageJson.version === expectedVersion, `package version is ${packageJson.version}`);
   check(packageJson.scripts === undefined, 'packaged package.json still contains scripts');
