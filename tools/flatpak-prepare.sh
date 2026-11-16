@@ -27,7 +27,7 @@ set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-TAG="${TAG:-}"
+tag_arg=""
 ELECTRON_POLICY="${ELECTRON_POLICY:-supported}"
 BUILDER_POLICY="${BUILDER_POLICY:-latest}"
 TARGET_ELECTRON="${TARGET_ELECTRON:-}"
@@ -37,7 +37,7 @@ OUTPUT="${OUTPUT:-}"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --tag) TAG="${2:-}"; shift 2 ;;
+    --tag) tag_arg="${2:-}"; shift 2 ;;
     --electron) ELECTRON_POLICY="${2:-}"; shift 2 ;;
     --builder) BUILDER_POLICY="${2:-}"; shift 2 ;;
     --electron-version) TARGET_ELECTRON="${2:-}"; shift 2 ;;
@@ -53,8 +53,8 @@ while [ "$#" -gt 0 ]; do
       exit 2
       ;;
     *)
-      if [ -z "$TAG" ]; then
-        TAG="$1"
+      if [ -z "$tag_arg" ]; then
+        tag_arg="$1"
         shift
       else
         echo "flatpak-prepare: unexpected argument: $1" >&2
@@ -63,6 +63,8 @@ while [ "$#" -gt 0 ]; do
       ;;
   esac
 done
+
+TAG="${tag_arg:-${TAG:-}}"
 
 if [ -z "$TAG" ]; then
   if ! command -v gh >/dev/null 2>&1; then
