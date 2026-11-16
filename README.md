@@ -2,7 +2,7 @@
 
 [![Build Linux AppImage](https://github.com/nichu42/wire-desktop-linux/actions/workflows/build-linux.yml/badge.svg)](https://github.com/nichu42/wire-desktop-linux/actions/workflows/build-linux.yml)
 [![Build Flatpak repository](https://github.com/nichu42/wire-desktop-linux/actions/workflows/flatpak.yml/badge.svg)](https://github.com/nichu42/wire-desktop-linux/actions/workflows/flatpak.yml)
-[![Latest AppImage release](https://img.shields.io/github/v/release/nichu42/wire-desktop-linux?label=AppImage%20release)](https://github.com/nichu42/wire-desktop-linux/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/nichu42/wire-desktop-linux?label=release)](https://github.com/nichu42/wire-desktop-linux/releases/latest)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
 
 Unofficial, automatically rebuilt Linux AppImage **and Flatpak** of the
@@ -122,12 +122,16 @@ attestation when you need to know the file was produced by this repository's
 workflow.
 
 For the Flatpak, the OSTree commits and summary are signed by this repository's
-Flatpak key. The fingerprint is in the published
-[`build-info.json`](https://nichu42.github.io/wire-desktop-linux/flatpak/build-info.json);
-verify the remote with
-`flatpak remote-info --user wire io.github.nichu42.wire-desktop-linux`.
-Single-file `.flatpak` bundles on Releases also publish `Wire-*.flatpak.sha256`
-and a Sigstore build-provenance attestation (`gh attestation verify Wire-*.flatpak --repo nichu42/wire-desktop-linux`).
+Flatpak key (the fingerprint is in the published
+[`build-info.json`](https://nichu42.github.io/wire-desktop-linux/flatpak/build-info.json)),
+and single-file `.flatpak` bundles on Releases publish `Wire-*.flatpak.sha256`
+and a Sigstore build-provenance attestation:
+
+```bash
+flatpak remote-info --user wire io.github.nichu42.wire-desktop-linux
+sha256sum -c Wire-*.flatpak.sha256
+gh attestation verify Wire-*.flatpak --repo nichu42/wire-desktop-linux
+```
 
 ## Requirements
 
@@ -207,7 +211,7 @@ disable the sandbox. `--no-sandbox` disables renderer sandboxing and is a
 security regression for a messenger.
 
 The Flatpak does not need this AppArmor profile: zypak and Flatpak's own sandbox
-provide the runtime environment, and the desktop entry/Wrapper never pass
+provide the runtime environment, and the desktop entry/wrapper never pass
 `--no-sandbox`.
 
 ## Troubleshooting
@@ -289,7 +293,7 @@ tools/flatpak-prepare.sh <windows/* tag>
   → yarn up --mode=update-lockfile, flatpak-node-generator offline sources
   → flatpak-builder: patch, build, unpacked electron-builder output
   → assert asar/fuses/desktop/metainfo/wrapper + Xvfb smoke
-  → test-signed repo in CI; production GPG signing and Pages publish
+  → test-signed repo in CI; production GPG signing, Pages repo and release bundle upload
 ```
 
 Dependency policy: no application dependency versions are pinned here. For both
@@ -334,8 +338,9 @@ but have separate build gates.
 - **AppImage + Gear Lever:** upstream-versioned builds, embedded update source
   and a single-file install across distributions.
 - **Flatpak:** source build from the upstream tag, signed OSTree repository on
-  GitHub Pages, automatic `flatpak update`. It is not on Flathub; Flathub's
-  archived Wire package and its review requirements are out of scope.
+  GitHub Pages plus a single-file `.flatpak` bundle on Releases, automatic
+  `flatpak update`. It is not on Flathub; Flathub's archived Wire package and
+  its review requirements are out of scope.
 - **AUR:** third-party; `wire-desktop-git` uses the internal-branded
   configuration, and we do not maintain one.
 - Do not install the AppImage and the Flatpak together; pick one update path.
