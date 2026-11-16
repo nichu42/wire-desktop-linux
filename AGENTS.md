@@ -63,10 +63,13 @@ Flatpak repository.
 13. The Flatpak is a source build: apply both runtime patches, fail closed if
     either does not apply, and do not package a Flatpak without the assertions
     and smoke test. The AppImage keeps its best-effort patch behavior.
-14. The Flatpak uses the upstream tag's `yarn.lock` and Electron/electron-builder
-    pins; do not run `yarn up` or modify the lockfile in the Flatpak build. A
-    documented security exception may vendor an updated lockfile and regenerated
-    sources.
+14. The Flatpak follows the same Electron, `electron-builder` and
+    `@electron/fuses` resolution policy as the AppImage (`tools/resolve-deps.sh`).
+    `tools/flatpak-prepare.sh` updates the working lockfile with `yarn up
+    --mode=update-lockfile` and generates offline sources with
+    `flatpak-node-generator` before `flatpak-builder` runs `yarn install
+    --immutable` offline; do not commit the generated `flatpak/package.json`
+    or `flatpak/yarn.lock`.
 15. The Flatpak never passes `--no-sandbox`; it uses zypak from the Electron2
     BaseApp and the same fuses as the AppImage. Camera access goes through the
     XDG Camera portal with `WebRtcPipeWireCamera`; do not add `--device=all`.
@@ -79,8 +82,8 @@ Flatpak repository.
     release.
 18. The Flatpak dependency check is advisory. It reports out-of-support
     dependencies in a `flatpak-dependency` issue and must never gate the build
-    or publish. Electron still follows the upstream pin; moving it needs a
-    documented exception.
+    or publish. Electron and `electron-builder` follow the same `supported` /
+    `latest` policy as the AppImage via `tools/resolve-deps.sh`.
 
 ## Layout
 
@@ -92,7 +95,8 @@ Flatpak repository.
 | `patches/01-linux-runtime.patch` | Restores the Linux runtime behavior upstream removed |
 | `patches/02-flatpak-runtime.patch` | Hides the Flatpak-incompatible autostart toggle |
 | `flatpak/` | Manifest template, desktop entry, metainfo, zypak wrapper, Flatpak electron-builder config |
-| `tools/flatpak-prepare.sh` | Resolves the tag/config, generates offline sources, renders the manifest |
+| `tools/resolve-deps.sh` | Resolves Electron, `electron-builder` and `@electron/fuses` policy versions |
+| `tools/flatpak-prepare.sh` | Resolves the tag/deps/config, updates lockfile, generates offline sources, renders manifest |
 | `tools/flatpak-render-manifest.mjs` | Fills the Flatpak manifest template |
 | `tools/flatpak-repo.sh` | Exports/signs the OSTree repo and builds a bundle |
 | `tools/flatpak-keygen.sh` | Generates the Flatpak signing key and prints the secrets |
@@ -135,16 +139,16 @@ Jobs: `resolve` → `build` → `smoke-2204` → `publish`, plus `report-failure
 release; a failure creates a `Canary build failure` issue.
 
 `flatpak.yml` triggers on the daily 06:37 UTC schedule, `workflow_dispatch`
-(`tag`, `force`, `publish`) and pushes to the Flatpak files. Jobs:
+(`tag`, `electron`, `builder`, `force`, `publish`) and pushes to the Flatpak files. Jobs:
 `resolve` → `build` (offline source build, test-signed repo, smoke, manifest/
 AppStream lint) → `publish` (artifact-to-release check, production GPG signing,
 signed repo and single-file bundle install/smoke, attestation, Pages, and a
 check of the deployed repository). The scheduled/dispatched `dependency-check`
 job reports Electron, Freedesktop runtime, BaseApp and Node SDK support and
 opens or closes a `flatpak-dependency` issue; it never gates the build.
-A skipped resolve means the published tag/fingerprint is current. Push runs do
-not publish; a scheduled failure opens a `flatpak-failure` issue and a
-successful scheduled run closes it.
+A skipped resolve means the published tag, Electron version and fingerprint are
+current. Push runs do not publish; a scheduled failure opens a `flatpak-failure`
+issue and a successful scheduled run closes it.
 
 Runner pins:
 
@@ -219,14 +223,13 @@ Do not prune releases; they are kept for rollback and version pinning.
 - Apply overrides with
   `yarn up electron@<v> electron-builder@<v> @electron/fuses@<v>`, then
   `yarn install --immutable`. For the AppImage, `postinstall: yarn configure`
-  must run; it fetches the production config and icons. The Flatpak replaces it
-  with the pinned offline config sources.
-- **Flatpak:** the upstream tag's lockfile and Electron/electron-builder pins are
-  used unchanged with `yarn install --immutable`; `yarn up` is forbidden in the
-  Flatpak build. `flatpak-node-generator` supplies all Yarn/Electron sources and
-  the production config archive is pinned by URL + SHA-256. The Flatpak may
-  trail the AppImage by Electron patch releases; a documented security exception
-  may vendor a new lockfile and regenerated sources.
+  must run; it fetches the production config and icons. The Flatpak runs
+  `yarn up --mode=update-lockfile` during `tools/flatpak-prepare.sh`, generates
+  offline sources with `flatpak-node-generator`, replaces `postinstall` with the
+  pinned offline config sources, and runs `yarn install --immutable` offline.
+  - **Flatpak runtime/SDK:** `RUNTIME_VERSION` and `NODE_VERSION` are pinned in
+    `flatpak.yml` and mirrored in `tools/flatpak-prepare.sh` and
+    `tools/flatpak-render-manifest.mjs`.
 
 ## Local checks
 

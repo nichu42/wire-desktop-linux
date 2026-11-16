@@ -97,56 +97,20 @@ jobs:
           version="${BASH_REMATCH[1]}"
           build="${version##*.}"
 
-          upstream_pkg=$(gh api "repos/wireapp/wire-desktop/contents/package.json?ref=$tag" --jq '.content' | base64 -d)
-          upstream_electron=$(jq -r '.devDependencies.electron' <<<"$upstream_pkg")
-          upstream_builder=$(jq -r '.devDependencies["electron-builder"]' <<<"$upstream_pkg")
-          upstream_major="${upstream_electron%%.*}"
-
-          registry=$(curl -fsSL https://registry.npmjs.org/electron)
-          latest=$(jq -r '.["dist-tags"].latest' <<<"$registry")
-          latest_major="${latest%%.*}"
-          oldest_supported=$((latest_major - 2))
-          target_major="$upstream_major"
-          if [ "$target_major" -lt "$oldest_supported" ]; then
-            target_major="$oldest_supported"
-          fi
-
-          case "$ELECTRON_POLICY" in
-            upstream)
-              target_electron="$upstream_electron"
-              ;;
-            latest)
-              target_major="$latest_major"
-              target_electron=$(jq -r --arg t "${target_major}-x-y" '.["dist-tags"][$t] // empty' <<<"$registry")
-              ;;
-            supported)
-              target_electron=$(jq -r --arg t "${target_major}-x-y" '.["dist-tags"][$t] // empty' <<<"$registry")
-              ;;
-            *)
-              echo "Unknown electron policy: $ELECTRON_POLICY" >&2
-              exit 1
-              ;;
-          esac
-
-          if [ -z "$target_electron" ] || [ "$target_electron" = "null" ]; then
-            target_electron=$(jq -r --arg p "${target_major}." \
-              '[.versions | keys[] | select(startswith($p)) | select(test("-") | not)] | sort_by(split(".") | map(tonumber)) | last' \
-              <<<"$registry")
-          fi
-          if [ -z "$target_electron" ] || [ "$target_electron" = "null" ]; then
-            echo "Could not resolve an Electron version for major $target_major" >&2
-            exit 1
-          fi
-
-          if [ "$BUILDER_POLICY" = "upstream" ]; then
-            target_builder="$upstream_builder"
-          else
-            target_builder=$(curl -fsSL https://registry.npmjs.org/electron-builder | jq -r '.["dist-tags"].latest')
-          fi
+          tmp_pkg="$(mktemp)"
+          gh api "repos/wireapp/wire-desktop/contents/package.json?ref=$tag" --jq '.content' | base64 -d > "$tmp_pkg"
+          deps="$(bash tools/resolve-deps.sh --package-json "$tmp_pkg" \
+            --electron "$ELECTRON_POLICY" --builder "$BUILDER_POLICY")"
+          rm -f "$tmp_pkg"
+          upstream_electron=$(jq -r '.upstream_electron' <<<"$deps")
+          upstream_builder=$(jq -r '.upstream_builder' <<<"$deps")
+          target_electron=$(jq -r '.electron' <<<"$deps")
+          target_builder=$(jq -r '.builder' <<<"$deps")
           # Keep upstream's fuses version: 2.x uses an exports map that upstream's
           # `moduleResolution: node` typecheck cannot resolve. 1.8.x supports the
           # fuse wire and exposes getCurrentFuseWire.
-          target_fuses=$(jq -r '.devDependencies["@electron/fuses"]' <<<"$upstream_pkg")
+          target_fuses=$(jq -r '.fuses' <<<"$deps")
+          eol_escape=$(jq -r '.eol_escape' <<<"$deps")
 
           fingerprint=$(find tools patches -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
 
@@ -184,10 +148,6 @@ jobs:
           release_tag="v${version}"
           if [ "$revision" -gt 0 ]; then
             release_tag="v${version}-r${revision}"
-          fi
-          eol_escape=false
-          if [ "$target_major" != "$upstream_major" ]; then
-            eol_escape=true
           fi
 
           {
@@ -310,6 +270,7 @@ jobs:
       - name: Lint scripts
         run: |
           shellcheck install.sh tools/release-notes.sh tools/smoke-test.sh \
+            tools/resolve-deps.sh \
             tools/flatpak-prepare.sh tools/flatpak-repo.sh tools/flatpak-keygen.sh \
             tools/flatpak-dependencies.sh tools/smoke-test-flatpak.sh \
             flatpak/wire-desktop-flatpak.sh

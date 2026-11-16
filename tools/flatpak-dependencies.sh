@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-only
 #
-# Report whether the Flatpak build would use supported dependencies.
+# Report whether the Flatpak build uses supported dependencies.
 #
-# Checks the upstream Electron pin against npm's supported window, the
-# Freedesktop runtime and Electron2 BaseApp branches against Flathub, and the
-# Node SDK extension against Flathub and the Node release schedule.
+# Resolves the Flatpak Electron and electron-builder versions using the
+# repository's dependency policy (`tools/resolve-deps.sh`), and checks the
+# Freedesktop runtime, Electron2 BaseApp and Node SDK extension against
+# Flathub and the Node release schedule.
 #
 # Usage:
 #   tools/flatpak-dependencies.sh [--tag windows/x.y.z] [--runtime 26.08] \
@@ -17,6 +18,7 @@
 
 set -euo pipefail
 
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 TAG=""
 RUNTIME_VERSION="${RUNTIME_VERSION:-26.08}"
 NODE_VERSION="${NODE_VERSION:-24}"
@@ -29,7 +31,7 @@ while [ "$#" -gt 0 ]; do
     --node) NODE_VERSION="${2:-}"; shift 2 ;;
     --report) REPORT="${2:-}"; shift 2 ;;
     -h | --help)
-      sed -n '3,14p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '3,16p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
@@ -69,40 +71,46 @@ if ! curl -fsSL "https://raw.githubusercontent.com/wireapp/wire-desktop/$TAG/pac
   exit 2
 fi
 
-electron_pin="$(jq -r '.devDependencies.electron // empty' "$tmp/package.json")"
-builder_pin="$(jq -r '.devDependencies["electron-builder"] // empty' "$tmp/package.json")"
+upstream_electron="$(jq -r '.devDependencies.electron // empty' "$tmp/package.json")"
+upstream_builder="$(jq -r '.devDependencies["electron-builder"] // empty' "$tmp/package.json")"
 yarn_pin="$(jq -r '.packageManager // empty' "$tmp/package.json" | sed -n 's/^yarn@//p')"
 
 findings=()
 notes=()
 lookup_failed=false
 
-# Electron: the Flatpak follows the upstream pin, which is fine while the
-# major is inside the window the AppImage policy uses (latest major - 2).
+# Electron & electron-builder: Flatpak follows the same `supported` / `latest`
+# policy as the AppImage via `tools/resolve-deps.sh`.
 electron_status="❔ unknown"
+electron=""
+builder=""
 latest_electron=""
 oldest_supported=""
-if registry="$(curl -fsSL https://registry.npmjs.org/electron 2>/dev/null)"; then
-  latest_electron="$(jq -r '.["dist-tags"].latest // empty' <<<"$registry")"
-else
-  lookup_failed=true
-fi
-if [ -n "$latest_electron" ] && [ -n "$electron_pin" ]; then
+eol_escape=false
+if deps="$(bash "$ROOT/tools/resolve-deps.sh" --package-json "$tmp/package.json" \
+  --electron supported --builder latest 2>/dev/null)"; then
+  electron="$(jq -r '.electron' <<<"$deps")"
+  builder="$(jq -r '.builder' <<<"$deps")"
+  latest_electron="$(jq -r '.latest_electron' <<<"$deps")"
+  oldest_supported="$(jq -r '.oldest_supported_major' <<<"$deps")"
+  target_major="$(jq -r '.target_major' <<<"$deps")"
   latest_major="${latest_electron%%.*}"
-  pin_major="${electron_pin%%.*}"
-  oldest_supported=$((latest_major - 2))
-  if [ "$pin_major" -lt "$oldest_supported" ]; then
+  eol_escape="$(jq -r '.eol_escape' <<<"$deps")"
+  if [ "$target_major" -lt "$oldest_supported" ]; then
     electron_status="❌ out of support"
-    findings+=("Electron \`$electron_pin\` is outside the supported window (oldest supported major: $oldest_supported, npm latest: $latest_electron). Bump upstream or document a security exception.")
-  elif [ "$pin_major" -lt "$latest_major" ]; then
+    findings+=("Resolved Electron \`$electron\` is outside the supported window (oldest supported major: $oldest_supported, npm latest: $latest_electron).")
+  elif [ "$target_major" -lt "$latest_major" ]; then
     electron_status="✅ supported"
-    notes+=("Electron \`$electron_pin\` trails npm latest \`$latest_electron\` by $((latest_major - pin_major)) major(s); it is still inside the supported window.")
+    notes+=("Flatpak builds with Electron \`$electron\` (upstream pin: \`$upstream_electron\`), inside the supported window (npm latest: \`$latest_electron\`).")
   else
     electron_status="✅ current"
   fi
+  if [ "$eol_escape" = "true" ]; then
+    notes+=("Upstream Electron pin \`$upstream_electron\` is outside the supported window; Flatpak upgrades to \`$electron\`.")
+  fi
 else
   lookup_failed=true
-  notes+=("Could not resolve the Electron support window from the npm registry.")
+  notes+=("Could not resolve the Electron/electron-builder versions from the npm registry.")
 fi
 
 # Freedesktop runtime, Electron2 BaseApp and the Node SDK extension: Flathub
@@ -223,8 +231,8 @@ fi
   echo
   echo "| Dependency | Flatpak | Available / policy | Status |"
   echo "| --- | --- | --- | --- |"
-  echo "| Electron | \`${electron_pin:-unknown}\` | \`${latest_electron:-unknown}\`; oldest supported: \`${oldest_supported:-unknown}\` | $electron_status |"
-  echo "| electron-builder | \`${builder_pin:-unknown}\` | build-time pin | ℹ️ upstream |"
+  echo "| Electron | \`${electron:-unknown}\` (upstream \`${upstream_electron:-unknown}\`) | \`${latest_electron:-unknown}\`; oldest supported: \`${oldest_supported:-unknown}\` | $electron_status |"
+  echo "| electron-builder | \`${builder:-unknown}\` (upstream \`${upstream_builder:-unknown}\`) | \`latest\` policy | ℹ️ policy |"
   echo "| Yarn | \`${yarn_pin:-unknown}\` | build-time pin | ℹ️ upstream |"
   echo "| Freedesktop runtime | \`$RUNTIME_VERSION\` | newest on Flathub: \`${newest_runtime:-unknown}\` | $runtime_status |"
   echo "| Electron2 BaseApp | \`$RUNTIME_VERSION\` | branch on Flathub | $base_status |"

@@ -84,13 +84,15 @@ xvfb-run -a tools/smoke-test-flatpak.sh io.github.nichu42.wire-desktop-linux
 ```
 
 `tools/flatpak-prepare.sh` writes `flatpak/generated-sources.json`,
-`flatpak/prepared.json` and the rendered `flatpak/<app-id>.yml`; all three are
-generated and ignored by Git.
+`flatpak/package.json`, `flatpak/yarn.lock`, `flatpak/prepared.json` and the
+rendered `flatpak/<app-id>.yml`; all five are generated and ignored by Git.
 
-The build intentionally uses the upstream tag's Electron pin and
-`yarn install --immutable`; it does not run `yarn up`. This keeps the Flatpak
-reproducible and offline. The AppImage continues to use the newest supported
-Electron patch.
+The build uses the same Electron, `electron-builder` and `@electron/fuses`
+dependency policy as the AppImage (`tools/resolve-deps.sh`).
+`tools/flatpak-prepare.sh` updates the working `package.json`/`yarn.lock` with
+`yarn up --mode=update-lockfile` and feeds that lockfile to
+`flatpak-node-generator`, so `flatpak-builder` still runs
+`yarn install --immutable` completely offline.
 
 ## Signing and publishing
 
@@ -134,25 +136,28 @@ repository back and verifies its version and summary signature.
 `.github/workflows/flatpak.yml` runs:
 
 - daily at 06:37 UTC, after the AppImage build;
-- on `workflow_dispatch` with `tag`, `force` and `publish` inputs;
+- on `workflow_dispatch` with `tag`, `electron`, `builder`, `force` and `publish`
+  inputs;
 - on pushes to `flatpak/**`, `patches/**` or the Flatpak tooling.
 
 The resolve job skips when the published `build-info.json` already has the same
-upstream tag and Flatpak fingerprint. Push-triggered runs build and test only;
-they do not publish. Scheduled and manual runs publish unless `publish=false`.
+upstream tag, resolved Electron version and Flatpak fingerprint. Push-triggered
+runs build and test only; they do not publish. Scheduled and manual runs publish
+unless `publish=false`.
 
 A scheduled failure opens or updates a `flatpak-failure` issue; a successful
 scheduled run closes open issues.
 
 ## Dependency freshness
 
-The Flatpak follows the upstream tag's Electron and Yarn pins, so it can trail
-the AppImage. The `dependency-check` job runs on the daily schedule and on
-manual dispatches (it never runs on push and never receives the signing key)
-and reports:
+The Flatpak uses the same Electron (`supported` / `latest` / `upstream`) and
+`electron-builder` (`latest` / `upstream`) policy as the AppImage via
+`tools/resolve-deps.sh`. The `dependency-check` job runs on the daily schedule
+and on manual dispatches (it never runs on push and never receives the signing
+key) and reports:
 
-- the upstream Electron pin against npm's supported window, using the same
-  oldest-supported rule as the AppImage (latest major - 2);
+- the resolved Electron version against npm's supported window (latest major - 2),
+  noting upstream EOL escapes;
 - the configured Freedesktop runtime and Electron2 BaseApp branches against
   what Flathub publishes, plus the runtime branch age;
 - the Node SDK extension branch on Flathub and the Node end-of-life schedule.
@@ -160,9 +165,7 @@ and reports:
 Findings open or update a `flatpak-dependency` issue and are added to the run
 summary; a clean run closes the issue. If a registry, Flathub or release-schedule
 lookup fails, the check exits as incomplete, reports a warning and leaves open
-issues untouched. The check is advisory: it does not gate the build or publish,
-because the Flatpak cannot move upstream's Electron pin without a documented
-exception.
+issues untouched. The check is advisory: it does not gate the build or publish.
 
 `RUNTIME_VERSION` and `NODE_VERSION` are defined once in
 `.github/workflows/flatpak.yml` and mirrored by the defaults in

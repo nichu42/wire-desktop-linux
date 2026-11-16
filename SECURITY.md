@@ -67,8 +67,10 @@ upstream tag. `build-info.json` records the upstream commit, Electron and
 electron-builder versions, patch fingerprint and lockfile hash. The build job
 runs with a read-only token; only the separate publish job can write releases.
 
-Flatpak builds are produced by `flatpak.yml` from the same upstream tag, with
-the upstream lockfile and `flatpak-node-generator` sources. The build job is
-read-only; only the publish job receives the Flatpak signing key and can deploy
-Pages. The published `build-info.json` records the upstream commit, Electron
-pin, Flatpak fingerprint, bundle SHA-256 and signing-key fingerprint.
+Flatpak builds are produced by `flatpak.yml` from the same upstream tag, using
+the same Electron and `electron-builder` resolution policy via
+`tools/flatpak-prepare.sh` and `flatpak-node-generator` offline sources. The
+build job is read-only; only the publish job receives the Flatpak signing key
+and can deploy Pages. The published `build-info.json` records the upstream
+commit, upstream and shipped Electron/builder versions, lockfile hash, Flatpak
+fingerprint, bundle SHA-256 and signing-key fingerprint.

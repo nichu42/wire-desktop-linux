@@ -68,6 +68,10 @@ modules:
       - patch -p1 --forward < ../patches/01-linux-runtime.patch
       - patch -p1 --forward < ../patches/02-flatpak-runtime.patch
 
+      # Apply the prepared Electron/electron-builder/fuses lockfile overrides.
+      - cp ../overrides/package.json package.json
+      - cp ../overrides/yarn.lock yarn.lock
+
       # Build tooling is kept outside the upstream tree in this repository.
       - cp -a ../tools tools
       - cp ../flatpak/electron-builder.config.cjs tools/electron-builder-flatpak.config.cjs
@@ -145,6 +149,12 @@ modules:
       - type: file
         path: electron-builder.config.cjs
         dest: flatpak
+      - type: file
+        path: package.json
+        dest: overrides
+      - type: file
+        path: yarn.lock
+        dest: overrides
 
       - type: archive
         url: '@CONFIG_URL@'

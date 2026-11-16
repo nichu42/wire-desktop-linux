@@ -26,14 +26,13 @@ multi-account switching, notifications, `wire://` handling and autostart. The
 web app itself is hosted by Wire and updates automatically.
 
 This repository rebuilds that shell from Wire's source, applies the Linux
-runtime changes Wire removed, runs the upstream test suite for AppImage
-releases, and publishes both an AppImage with Gear Lever-compatible update
-metadata and a Flatpak from a signed GitHub-hosted repository. The AppImage
-keeps Electron on the newest **supported** patch; the Flatpak uses the upstream
-tag's Electron pin so its source build stays reproducible and offline.
+runtime changes Wire removed, keeps Electron on the newest **supported**
+patch, runs the upstream test suite for AppImage releases, and publishes both
+an AppImage with Gear Lever-compatible update metadata and a Flatpak from a
+signed GitHub-hosted repository.
 
-- Builds are triggered by new upstream `windows/*` release tags; the AppImage
-  also rebuilds for Electron patch releases.
+- Builds are triggered by new upstream `windows/*` release tags and by
+  Electron patch releases.
 - App versions match the upstream build number (the tag suffix).
 - The AppImage is published through a draft/verification flow; the Flatpak is
   published only after its own source-build, lint, assertion and smoke gate.
@@ -278,23 +277,23 @@ The Flatpak pipeline is separate:
 
 ```
 tools/flatpak-prepare.sh <windows/* tag>
-  → resolve commit and Electron pin, pin the production config checksum
-  → flatpak-node-generator: offline Yarn/Electron sources
+  → resolve commit, newest supported Electron, electron-builder and config pin
+  → yarn up --mode=update-lockfile, flatpak-node-generator offline sources
   → flatpak-builder: patch, build, unpacked electron-builder output
   → assert asar/fuses/desktop/metainfo/wrapper + Xvfb smoke
   → test-signed repo in CI; production GPG signing and Pages publish
 ```
 
-Dependency policy: no application dependency versions are pinned here. Electron
-is resolved at build time to the newest patch of upstream's major, or to the
-oldest still-supported major if upstream's choice is EOL. Other app
-dependencies stay at the versions Wire ships; they move with each upstream tag.
-electron-builder is resolved to the latest release, with an automatic fallback
-to upstream's version if packaging fails; `@electron/fuses` follows upstream's
-`1.8.x` pin because 2.x breaks the upstream TypeScript configuration. The
-Flatpak deliberately uses the upstream tag's Electron/electron-builder pins so
-its source build remains reproducible and offline; it may trail the AppImage by
-Electron patch releases.
+Dependency policy: no application dependency versions are pinned here. For both
+the AppImage and the Flatpak, Electron is resolved at build time to the newest
+patch of upstream's major, or to the oldest still-supported major if upstream's
+choice is EOL. Other app dependencies stay at the versions Wire ships; they move
+with each upstream tag. `electron-builder` is resolved to the latest release
+(with an automatic fallback to upstream's version on AppImage packaging
+failure); `@electron/fuses` follows upstream's `1.8.x` pin because 2.x breaks
+the upstream TypeScript configuration. For the Flatpak, `flatpak-prepare.sh`
+runs `yarn up --mode=update-lockfile` and generates offline sources before
+`flatpak-builder` runs `yarn install --immutable` offline.
 
 The release workflow is split into read-only build jobs and a write-only
 publish job; `yarn install` never sees a write token. All actions are pinned to

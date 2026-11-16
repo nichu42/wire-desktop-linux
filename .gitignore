@@ -23,6 +23,8 @@ Wire*.flatpak
 /flatpak/*.yml
 /.flatpak-builder/
 /flatpak/generated-sources.json
+/flatpak/package.json
+/flatpak/yarn.lock
 /flatpak/prepared.json
 /flatpak/build/
 /flatpak/repo/

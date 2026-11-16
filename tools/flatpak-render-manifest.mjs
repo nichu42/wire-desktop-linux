@@ -8,7 +8,7 @@
 // Usage:
 //   node tools/flatpak-render-manifest.mjs \
 //     --tag windows/3.46.5382 --commit <sha> --version 3.46.5382 --build 5382 \
-//     --electron 43.1.1 --yarn 3.3.1 --config-url <url> --config-sha256 <sha> \
+//     --electron 43.8.10 --yarn 3.3.1 --config-url <url> --config-sha256 <sha> \
 //     [--runtime 26.08] [--base 26.08] [--node 24] [--date YYYY-MM-DD] \
 //     [--output flatpak/io.github.nichu42.wire-desktop-linux.yml]
 
