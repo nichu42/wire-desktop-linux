@@ -28,8 +28,8 @@ web app itself is hosted by Wire and updates automatically.
 This repository rebuilds that shell from Wire's source, applies the Linux
 runtime changes Wire removed, keeps Electron on the newest **supported**
 patch, runs the upstream test suite for AppImage releases, and publishes both
-an AppImage with Gear Lever-compatible update metadata and a Flatpak from a
-signed GitHub-hosted repository.
+an AppImage with [Gear Lever](https://gearlever.mijorus.it)-compatible update
+metadata and a Flatpak from a signed GitHub-hosted repository.
 
 - Builds are triggered by new upstream `windows/*` release tags and by
   Electron patch releases.
