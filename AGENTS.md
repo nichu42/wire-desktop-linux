@@ -354,4 +354,4 @@ release model changes, and do not blanket-disable SARIF upload.
 
 Upstream project: <https://github.com/wireapp/wire-desktop> ·
 Removal context: <https://github.com/wireapp/wire-desktop/issues/9747> ·
-Gear Lever: <https://gearlever.mijorus.it>
+Gear Lever: <https://github.com/mijorus/gearlever>

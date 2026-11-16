@@ -87,7 +87,7 @@ flatpak install --user wire io.github.nichu42.wire-desktop-linux
 ### AppImage
 
 1. Download \`Wire-*.AppImage\` below.
-2. Open [Gear Lever](https://gearlever.mijorus.it) and add the AppImage (or drag and drop it) for menu integration and updates, or run it directly / install with \`install.sh\`.
+2. Open [Gear Lever](https://github.com/mijorus/gearlever) and add the AppImage (or drag and drop it) for menu integration and updates, or run it directly / install with \`install.sh\`.
 
 ## Verify
 
