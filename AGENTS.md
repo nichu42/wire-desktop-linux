@@ -123,7 +123,7 @@ Flatpak repository.
 
 ## CI
 
-`build-linux.yml` triggers twice daily at 05:17 and 17:17 UTC and on
+`build-linux.yml` triggers every 6 hours (`05:17, 11:17, 17:17, 23:17 UTC`) and on
 `workflow_dispatch` with inputs:
 
 - `tag` — upstream tag; empty means latest `windows/*`.
@@ -138,7 +138,7 @@ Jobs: `resolve` → `build` → `smoke-2204` → `publish`, plus `report-failure
 `report-success`. A canary (`publish=false`) runs the full gate but creates no
 release; a failure creates a `Canary build failure` issue.
 
-`flatpak.yml` triggers twice daily at 06:37 and 18:37 UTC, on `workflow_dispatch`
+`flatpak.yml` triggers every 6 hours (`00:37, 06:37, 12:37, 18:37 UTC`), on `workflow_dispatch`
 (`tag`, `electron`, `builder`, `force`, `publish`) and pushes to the Flatpak files. Jobs:
 `resolve` → `build` (offline source build, test-signed repo, smoke, manifest/
 AppStream lint) → `publish` (artifact-to-release check, production GPG signing,

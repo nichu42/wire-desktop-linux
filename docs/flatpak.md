@@ -143,7 +143,7 @@ repository back and verifies its version and summary signature.
 
 `.github/workflows/flatpak.yml` runs:
 
-- twice daily at 06:37 and 18:37 UTC, after the AppImage build;
+- every 6 hours at `00:37, 06:37, 12:37, 18:37 UTC`, after the AppImage build;
 - on `workflow_dispatch` with `tag`, `electron`, `builder`, `force` and `publish`
   inputs;
 - on pushes to `flatpak/**`, `patches/**` or the Flatpak tooling.
