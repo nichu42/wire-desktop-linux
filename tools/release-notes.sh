@@ -66,7 +66,25 @@ fi
 
 cat <<EOF
 
-## Install with Gear Lever (recommended)
+## Install
+
+### Flatpak
+
+Single-file bundle (configures the signed OSTree remote for updates):
+
+\`\`\`bash
+flatpak install --user --bundle Wire-*.flatpak
+\`\`\`
+
+Or add the signed Flatpak repository directly:
+
+\`\`\`bash
+flatpak remote-add --if-not-exists --user wire \\
+  https://nichu42.github.io/wire-desktop-linux/flatpak/wire.flatpakrepo
+flatpak install --user wire io.github.nichu42.wire-desktop-linux
+\`\`\`
+
+### AppImage with Gear Lever (recommended)
 
 1. Download \`Wire-*.AppImage\` below.
 2. Open Gear Lever and add the AppImage (or drag and drop it).
@@ -78,6 +96,13 @@ cat <<EOF
 \`\`\`bash
 sha256sum -c SHA256SUMS
 gh attestation verify Wire-*.AppImage --repo ${REPO}
+\`\`\`
+
+For the Flatpak bundle (if attached):
+
+\`\`\`bash
+sha256sum -c Wire-*.flatpak.sha256
+gh attestation verify Wire-*.flatpak --repo ${REPO}
 \`\`\`
 
 The \`.zsync\` file is consumed by Gear Lever/AppImageUpdate; it is not needed

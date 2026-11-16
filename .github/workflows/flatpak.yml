@@ -320,7 +320,7 @@ jobs:
       (github.ref == 'refs/heads/linux' || startsWith(github.ref, 'refs/tags/'))
     runs-on: ubuntu-24.04
     permissions:
-      contents: read
+      contents: write
       pages: write
       id-token: write
       attestations: write
@@ -398,7 +398,9 @@ jobs:
           set -euo pipefail
           mkdir -p flatpak/build
           tar -xJf flatpak/dist/builddir.tar.xz -C flatpak/build
-          bash tools/flatpak-repo.sh flatpak/build flatpak/repo "$APP_ID" "$VERSION" \
+          FLATPAK_REPO_URL="$PAGES_URL/repo/" \
+            FLATPAK_RUNTIME_REPO="https://dl.flathub.org/repo/flathub.flatpakrepo" \
+            bash tools/flatpak-repo.sh flatpak/build flatpak/repo "$APP_ID" "$VERSION" \
             "$FLATPAK_GPG_KEY_ID" "$FLATPAK_GPG_HOME" flatpak/dist
 
       - name: Install the signed repository and smoke-test it
@@ -430,13 +432,10 @@ jobs:
           mkdir -p public/flatpak
           cp -a flatpak/repo public/flatpak/repo
           cp flatpak/dist/wire-desktop.gpg public/flatpak/
-          cp flatpak/dist/Wire-*-x86_64.flatpak public/flatpak/
           cp flatpak/dist/io.github.nichu42.wire-desktop-linux.yml public/flatpak/
           cp flatpak/dist/generated-sources.json public/flatpak/
           touch public/.nojekyll
 
-          # The repo and the bundle are each a compressed copy of the app.
-          # Fail here rather than at the GitHub Pages 1 GB limit.
           site_bytes="$(du -sb public | cut -f1)"
           echo "Pages payload: $((site_bytes / 1024 / 1024)) MiB"
           if [ "$site_bytes" -gt $((900 * 1024 * 1024)) ]; then
@@ -466,6 +465,8 @@ jobs:
           <pre>flatpak remote-add --if-not-exists --user wire \
             https://nichu42.github.io/wire-desktop-linux/flatpak/wire.flatpakrepo
           flatpak install --user wire io.github.nichu42.wire-desktop-linux</pre>
+          <p>Single-file <code>.flatpak</code> bundles are attached to
+            <a href="https://github.com/nichu42/wire-desktop-linux/releases">GitHub Releases</a>.</p>
           <p>Verify the signing key fingerprint before installing.</p>
           </html>
           EOF
@@ -511,6 +512,29 @@ jobs:
             exit 1
           fi
           echo "Published $APP_ID $VERSION; remote summary and signature verified"
+
+      - name: Upload Flatpak bundle to GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          bundle="Wire-${VERSION}-x86_64.flatpak"
+          (
+            cd flatpak/dist
+            sha256sum "$bundle" > "${bundle}.sha256"
+          )
+          release_tag=$(gh release list --limit 20 --json tagName,isDraft \
+            --jq "[.[] | select(.isDraft | not) | select(.tagName == \"v${VERSION}\" or (.tagName | startswith(\"v${VERSION}-r\")))] | .[0].tagName // empty")
+          if [ -z "$release_tag" ]; then
+            echo "::warning::No published GitHub release found for v${VERSION}; Flatpak bundle was not attached"
+            exit 0
+          fi
+          gh release upload "$release_tag" \
+            "flatpak/dist/${bundle}" \
+            "flatpak/dist/${bundle}.sha256" \
+            --clobber
+          echo "Attached ${bundle} to release ${release_tag}"
 
   dependency-check:
     name: Check Flatpak dependency freshness

@@ -312,6 +312,7 @@ jobs:
           LINUX_BUILD: "Unofficial AppImage · ${{ needs.resolve.outputs.release_tag }} (Electron ${{ needs.resolve.outputs.electron }})"
           LINUX_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
           URL_ABOUT_RELEASES: ${{ github.server_url }}/${{ github.repository }}/releases
+          UPSTREAM_RELEASE_URL: https://github.com/wireapp/wire-desktop/releases/tag/${{ needs.resolve.outputs.tag }}
         run: node tools/stamp-config.mjs
 
       - name: Build AppImage (latest electron-builder, fallback upstream)
@@ -519,6 +520,25 @@ jobs:
             CHANGELOG_FILE=artifacts/changelog.txt \
             REPO="$GH_REPO" \
             bash tools/release-notes.sh > notes.md
+
+          extra_assets=()
+          prev_flatpak_tag=$(gh release list --limit 20 --json tagName,isDraft \
+            --jq "[.[] | select(.isDraft | not) | select(.tagName == \"v${VERSION}\" or (.tagName | startswith(\"v${VERSION}-r\")))] | .[0].tagName // empty")
+          if [ -n "$prev_flatpak_tag" ]; then
+            mkdir -p carried
+            if gh release download "$prev_flatpak_tag" \
+              --pattern "Wire-${VERSION}-x86_64.flatpak" \
+              --pattern "Wire-${VERSION}-x86_64.flatpak.sha256" \
+              --dir carried >/dev/null 2>&1; then
+              if (cd carried && sha256sum -c "Wire-${VERSION}-x86_64.flatpak.sha256"); then
+                extra_assets=(
+                  "carried/Wire-${VERSION}-x86_64.flatpak"
+                  "carried/Wire-${VERSION}-x86_64.flatpak.sha256"
+                )
+              fi
+            fi
+          fi
+
           gh release create "$RELEASE_TAG" \
             artifacts/*.AppImage \
             artifacts/*.zsync \
@@ -527,8 +547,9 @@ jobs:
             artifacts/apparmor.profile \
             artifacts/SHA256SUMS \
             artifacts/build-info.json \
+            "${extra_assets[@]}" \
             --draft \
-            --title "Wire $VERSION — Linux AppImage (unofficial)" \
+            --title "Wire $VERSION — Linux (unofficial)" \
             --notes-file notes.md \
             --target "$GITHUB_SHA"
 
@@ -539,6 +560,9 @@ jobs:
           gh release download "$RELEASE_TAG" --dir "$tmp"
           cd "$tmp"
           sha256sum -c SHA256SUMS
+          if [ -f "Wire-${VERSION}-x86_64.flatpak.sha256" ]; then
+            sha256sum -c "Wire-${VERSION}-x86_64.flatpak.sha256"
+          fi
           appimage=$(find . -maxdepth 1 -name '*.AppImage' -print -quit)
           chmod +x "$appimage"
           update_info=$("$appimage" --appimage-updateinfo | tr -d '\r')

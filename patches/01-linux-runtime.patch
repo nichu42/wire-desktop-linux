@@ -15,10 +15,16 @@ index 4604e02..1e45358 100644
 +  color: #555;
 +}
 diff --git a/electron/html/about.html b/electron/html/about.html
-index c37a569..ef9f3d1 100644
+index c37a569..80f7811 100644
 --- a/electron/html/about.html
 +++ b/electron/html/about.html
-@@ -13,13 +13,14 @@
+@@ -8,18 +8,19 @@
+     <div>
+       <img id="logo" />
+       <h1 id="name"></h1>
+-      <p class="copy"><span data-string="aboutVersion"></span> <span id="version"></span></p>
++      <p id="desktopVersionRow" class="copy"><span data-string="aboutVersion"></span> <span id="version"></span></p>
+       <p class="webappVersion copy"><span data-string="aboutWebappVersion"></span> <span id="webappVersion"></span></p>
        <p class="webappAVSVersion copy">
          <span data-string="aboutWebappAVSVersion"></span> <span id="webappAVSVersion"></span>
        </p>
@@ -499,16 +505,17 @@ index 8f84ca9..c73d451 100644
 +  }
  };
 diff --git a/electron/src/preload/menu/preload-about.test.renderer.ts b/electron/src/preload/menu/preload-about.test.renderer.ts
-index ffc28e5..1445acb 100644
+index ffc28e5..70a82de 100644
 --- a/electron/src/preload/menu/preload-about.test.renderer.ts
 +++ b/electron/src/preload/menu/preload-about.test.renderer.ts
-@@ -84,4 +84,56 @@ describe('loadedAboutScreen', () => {
+@@ -84,4 +84,67 @@ describe('loadedAboutScreen', () => {
      assert.strictEqual(webappAVSVersionElement.textContent, '');
      assert.strictEqual(sendSpy.calledOnceWith(EVENT_TYPE.ABOUT.LOCALE_VALUES, []), true);
    });
 +
 +  it('renders optional Linux build info and repo link when provided', () => {
 +    document.body.innerHTML = `
++      <p id="desktopVersionRow" class="copy"><span data-string="aboutVersion"></span> <span id="version"></span></p>
 +      <div id="linuxBuildSection" hidden>
 +        <p id="linuxBuildRow" hidden><span id="linuxBuild"></span></p>
 +        <p><span id="linuxRepoRow" hidden><a id="linuxBuildLink" href="#"></a></span></p>
@@ -521,15 +528,22 @@ index ffc28e5..1445acb 100644
 +      linuxBuild: 'Unofficial AppImage · v3.46.5382 (Electron 43.8.10)',
 +      linuxRepoUrl: 'https://github.com/nichu42/wire-desktop-linux',
 +      productName: 'Wire',
++      upstreamReleaseUrl: 'https://github.com/wireapp/wire-desktop/releases/tag/windows/3.46.5382',
 +      webappVersion: '2019.04.10.0901',
 +    });
 +
++    const desktopLink = document.querySelector('#desktopVersionRow a');
 +    const section = document.getElementById('linuxBuildSection');
 +    const buildRow = document.getElementById('linuxBuildRow');
 +    const buildElement = document.getElementById('linuxBuild');
 +    const repoRow = document.getElementById('linuxRepoRow');
 +    const buildLink = document.getElementById('linuxBuildLink');
 +
++    assert.strictEqual(
++      desktopLink?.getAttribute('href'),
++      'https://github.com/wireapp/wire-desktop/releases/tag/windows/3.46.5382',
++    );
++    assert.strictEqual(desktopLink?.querySelector('#version')?.textContent, '3.46.5382');
 +    assert.strictEqual(section?.hidden, false);
 +    assert.strictEqual(buildRow?.hidden, false);
 +    assert.strictEqual(buildElement?.textContent, 'Unofficial AppImage · v3.46.5382 (Electron 43.8.10)');
@@ -538,8 +552,9 @@ index ffc28e5..1445acb 100644
 +    assert.strictEqual(buildLink?.textContent, 'github.com/nichu42/wire-desktop-linux');
 +  });
 +
-+  it('ignores non-https Linux repo URLs', () => {
++  it('ignores non-https Linux repo and upstream release URLs', () => {
 +    document.body.innerHTML = `
++      <p id="desktopVersionRow" class="copy"><span data-string="aboutVersion"></span> <span id="version"></span></p>
 +      <div id="linuxBuildSection" hidden>
 +        <p id="linuxBuildRow" hidden><span id="linuxBuild"></span></p>
 +        <p><span id="linuxRepoRow" hidden><a id="linuxBuildLink" href="#"></a></span></p>
@@ -551,28 +566,56 @@ index ffc28e5..1445acb 100644
 +      electronVersion: '3.46.5382',
 +      linuxRepoUrl: 'http://example.com',
 +      productName: 'Wire',
++      upstreamReleaseUrl: 'javascript:alert(1)',
 +      webappVersion: '2019.04.10.0901',
 +    });
 +
++    assert.strictEqual(document.querySelector('#desktopVersionRow a'), null);
 +    assert.strictEqual(document.getElementById('linuxBuildSection')?.hidden, true);
 +    assert.strictEqual(document.getElementById('linuxBuildRow')?.hidden, true);
 +    assert.strictEqual(document.getElementById('linuxRepoRow')?.hidden, true);
 +  });
  });
 diff --git a/electron/src/preload/menu/preload-about.ts b/electron/src/preload/menu/preload-about.ts
-index 8abbb92..3dfd17d 100644
+index 8abbb92..4d1be23 100644
 --- a/electron/src/preload/menu/preload-about.ts
 +++ b/electron/src/preload/menu/preload-about.ts
-@@ -40,6 +40,8 @@ ipcRenderer.once(EVENT_TYPE.ABOUT.LOCALE_RENDER, (_event, labels: Record<string,
+@@ -40,7 +40,10 @@ ipcRenderer.once(EVENT_TYPE.ABOUT.LOCALE_RENDER, (_event, labels: Record<string,
  interface Details {
    copyright: string;
    electronVersion: string;
 +  linuxBuild?: string;
 +  linuxRepoUrl?: string;
    productName: string;
++  upstreamReleaseUrl?: string;
    webappVersion: string;
    webappAVSVersion?: string;
-@@ -75,6 +77,35 @@ export function loadedAboutScreen(_event: unknown, details: Details): void {
+ }
+@@ -68,6 +71,23 @@ export function loadedAboutScreen(_event: unknown, details: Details): void {
+     versionElement.textContent = details.electronVersion;
+   }
+ 
++  const desktopVersionRow = document.getElementById('desktopVersionRow');
++  const {upstreamReleaseUrl} = details;
++  if (
++    desktopVersionRow !== null &&
++    typeof upstreamReleaseUrl === 'string' &&
++    upstreamReleaseUrl.startsWith('https://') &&
++    desktopVersionRow.querySelector('a') === null
++  ) {
++    const link = document.createElement('a');
++    link.href = upstreamReleaseUrl;
++    link.target = '_blank';
++    while (desktopVersionRow.firstChild !== null) {
++      link.appendChild(desktopVersionRow.firstChild);
++    }
++    desktopVersionRow.appendChild(link);
++  }
++
+   renderWebappVersions(details);
+ 
+   const copyrightElement = document.getElementById('copyright');
+@@ -75,6 +95,35 @@ export function loadedAboutScreen(_event: unknown, details: Details): void {
      copyrightElement.textContent = details.copyright;
    }
  
@@ -735,10 +778,10 @@ index 3aecfd3..93b29a6 100644
    WINDOW_BOUNDS = 'bounds',
  }
 diff --git a/electron/src/settings/config.ts b/electron/src/settings/config.ts
-index 91e9a28..677b268 100644
+index 91e9a28..892d986 100644
 --- a/electron/src/settings/config.ts
 +++ b/electron/src/settings/config.ts
-@@ -30,6 +30,8 @@ interface WireJson {
+@@ -30,12 +30,15 @@ interface WireJson {
    environment: 'internal' | 'production' | 'wire-gov';
    legalUrl: string;
    licensesUrl: string;
@@ -747,8 +790,15 @@ index 91e9a28..677b268 100644
    maximumAccounts: string;
    name: string;
    nameShort: string;
+   privacyUrl: string;
+   supportUrl: string;
+   updateUrl: string;
++  upstreamReleaseUrl?: string;
+   version: string;
+   websiteUrl: string;
+ }
 diff --git a/electron/src/window/AboutWindow.ts b/electron/src/window/AboutWindow.ts
-index d14796b..2d48ed9 100644
+index d14796b..abb9651 100644
 --- a/electron/src/window/AboutWindow.ts
 +++ b/electron/src/window/AboutWindow.ts
 @@ -51,8 +51,8 @@ const ABOUT_WINDOW_ALLOWLIST = [
@@ -762,12 +812,14 @@ index d14796b..2d48ed9 100644
  };
  
  ipcMain.on(EVENT_TYPE.UI.WEBAPP_VERSION, (_event, version: string) => {
-@@ -141,6 +141,8 @@ function renderAboutWindow(activeWebappVersions: WebappVersions): void {
+@@ -141,7 +141,10 @@ function renderAboutWindow(activeWebappVersions: WebappVersions): void {
    aboutWindow.webContents.send(EVENT_TYPE.ABOUT.LOADED, {
      copyright: config.copyright,
      electronVersion: config.version,
 +    linuxBuild: config.linuxBuild,
 +    linuxRepoUrl: config.linuxRepoUrl,
      productName: config.name,
++    upstreamReleaseUrl: config.upstreamReleaseUrl,
      webappVersion: activeWebappVersions.webappVersion,
      webappAVSVersion: activeWebappVersions.webappAVSVersion,
+   });

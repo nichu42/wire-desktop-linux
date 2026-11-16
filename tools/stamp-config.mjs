@@ -93,6 +93,9 @@ const config = {
   raygunApiKey: read('RAYGUN_API_KEY', defaults.raygunApiKey),
   supportUrl: read('URL_SUPPORT', defaults.supportUrl),
   updateUrl: read('WIN_URL_UPDATE', defaults.updateUrl),
+  upstreamReleaseUrl:
+    process.env.UPSTREAM_RELEASE_URL ||
+    `https://github.com/wireapp/wire-desktop/releases/tag/windows/${version}`,
   version,
   websiteUrl: read('URL_WEBSITE', defaults.websiteUrl),
 };

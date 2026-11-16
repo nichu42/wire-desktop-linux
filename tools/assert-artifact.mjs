@@ -60,6 +60,12 @@ check(
     !wireJson.aboutReleasesUrl.includes('wireapp/wire-desktop'),
   `wire.json aboutReleasesUrl is ${wireJson.aboutReleasesUrl}`,
 );
+check(
+  typeof wireJson.upstreamReleaseUrl === 'string' &&
+    wireJson.upstreamReleaseUrl.startsWith('https://github.com/wireapp/wire-desktop/releases/tag/') &&
+    wireJson.upstreamReleaseUrl.includes(expectedVersion),
+  `wire.json upstreamReleaseUrl is ${wireJson.upstreamReleaseUrl}`,
+);
 check(packageJson.productName === 'Wire', `productName is ${packageJson.productName}`);
 check(packageJson.version === expectedVersion, `package version is ${packageJson.version}`);
 check(packageJson.scripts === undefined, 'packaged package.json still contains scripts');

@@ -142,8 +142,9 @@ release; a failure creates a `Canary build failure` issue.
 (`tag`, `electron`, `builder`, `force`, `publish`) and pushes to the Flatpak files. Jobs:
 `resolve` → `build` (offline source build, test-signed repo, smoke, manifest/
 AppStream lint) → `publish` (artifact-to-release check, production GPG signing,
-signed repo and single-file bundle install/smoke, attestation, Pages, and a
-check of the deployed repository). The scheduled/dispatched `dependency-check`
+signed repo and single-file bundle install/smoke, attestation, Pages, a check of
+the deployed repository, and attaching the `.flatpak` bundle + `.sha256` to the
+matching GitHub release). The scheduled/dispatched `dependency-check`
 job reports Electron, Freedesktop runtime, BaseApp and Node SDK support and
 opens or closes a `flatpak-dependency` issue; it never gates the build.
 A skipped resolve means the published tag, Electron version and fingerprint are
@@ -191,16 +192,20 @@ gh issue list --repo nichu42/wire-desktop-linux --label flatpak-dependency
   by Electron/tooling/fingerprint changes.
 - Assets: AppImage, `.zsync`, `wire-desktop.png`,
   `wire-desktop.metainfo.xml`, `apparmor.profile`, `SHA256SUMS`,
-  `build-info.json`.
+  `build-info.json`, plus `Wire-<version>-x86_64.flatpak` and
+  `Wire-<version>-x86_64.flatpak.sha256` (attached by `flatpak.yml` after its
+  full gate and carried over on AppImage-only `-rN` rebuilds).
 - `build-info.json` (schema 1) records upstream tag/commit, upstream and
   shipped Electron, builder, fuses, revision, fingerprint, lockfile hash,
   policy, EOL flag, build time and run id.
 - Publish flow: draft → attest provenance → download assets back and verify →
-  publish. Never upload directly to a published release.
-- The Flatpak is **not** a GitHub release asset. It is published to
-  `https://nichu42.github.io/wire-desktop-linux/flatpak/` with a signed OSTree
-  repository, `wire.flatpakrepo`, `build-info.json` and the rendered manifest.
-  AppImage release assets and Gear Lever metadata are unchanged.
+  publish. Never upload directly to a published release before verification.
+- The signed OSTree Flatpak repository is published to
+  `https://nichu42.github.io/wire-desktop-linux/flatpak/` (`repo/`,
+  `wire.flatpakrepo`, `build-info.json` and the rendered manifest); the
+  single-file `.flatpak` bundle (+ `.sha256`) is attached to the matching
+  GitHub release with `--repo-url` pointing at that Pages repository.
+  AppImage `SHA256SUMS` and Gear Lever metadata remain unchanged.
 - Verify a release:
 
 ```bash

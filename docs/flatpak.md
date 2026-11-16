@@ -17,6 +17,12 @@ flatpak remote-add --if-not-exists --user wire \
 flatpak install --user wire io.github.nichu42.wire-desktop-linux
 ```
 
+Or download `Wire-<version>-x86_64.flatpak` from
+[GitHub Releases](https://github.com/nichu42/wire-desktop-linux/releases/latest)
+and install it directly (`flatpak install --user --bundle Wire-*.flatpak`); the
+bundle embeds the public key, repository URL and Flathub runtime URL so
+`flatpak update --user` continues to pull updates from the signed OSTree repo.
+
 Updates:
 
 ```sh
@@ -50,9 +56,11 @@ flatpak info --user io.github.nichu42.wire-desktop-linux
 ```
 
 The workflow also creates a Sigstore build-provenance attestation for the
-single-file `.flatpak` bundle in the workflow run. The bundle embeds the public
-key, so it can be installed directly with `flatpak install --bundle Wire-*.flatpak`;
-the signed OSTree repository is still the update channel.
+single-file `.flatpak` bundle (`Wire-<version>-x86_64.flatpak`, attached to the
+matching GitHub release alongside `Wire-<version>-x86_64.flatpak.sha256`). The
+bundle embeds the public key and signed OSTree repository URL, so it can be
+installed directly with `flatpak install --user --bundle Wire-*.flatpak` and
+updated via `flatpak update --user`.
 
 ## Build locally
 

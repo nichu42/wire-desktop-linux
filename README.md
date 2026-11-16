@@ -50,6 +50,12 @@ flatpak remote-add --if-not-exists --user wire \
 flatpak install --user wire io.github.nichu42.wire-desktop-linux
 ```
 
+Or download `Wire-*.flatpak` from
+[Releases](https://github.com/nichu42/wire-desktop-linux/releases/latest) and
+install it with `flatpak install --user --bundle Wire-*.flatpak` (it embeds the
+public key and configures the signed repository so `flatpak update --user` works
+afterward too).
+
 Update it with `flatpak update --user`. The signing key fingerprint is published
 in the repository's
 [`build-info.json`](https://nichu42.github.io/wire-desktop-linux/flatpak/build-info.json);
@@ -120,6 +126,8 @@ Flatpak key. The fingerprint is in the published
 [`build-info.json`](https://nichu42.github.io/wire-desktop-linux/flatpak/build-info.json);
 verify the remote with
 `flatpak remote-info --user wire io.github.nichu42.wire-desktop-linux`.
+Single-file `.flatpak` bundles on Releases also publish `Wire-*.flatpak.sha256`
+and a Sigstore build-provenance attestation (`gh attestation verify Wire-*.flatpak --repo nichu42/wire-desktop-linux`).
 
 ## Requirements
 

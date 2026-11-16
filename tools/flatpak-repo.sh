@@ -49,7 +49,13 @@ flatpak build-update-repo "${sign_args[@]}" \
 bundle_args=()
 if [ "$KEY_ID" != "-" ]; then
   gpg "${export_args[@]}" > "$OUTPUT_DIR/wire-desktop.gpg"
-  bundle_args=(--gpg-keys="$OUTPUT_DIR/wire-desktop.gpg")
+  bundle_args+=(--gpg-keys="$OUTPUT_DIR/wire-desktop.gpg")
+fi
+if [ -n "${FLATPAK_REPO_URL:-}" ]; then
+  bundle_args+=(--repo-url="$FLATPAK_REPO_URL")
+fi
+if [ -n "${FLATPAK_RUNTIME_REPO:-}" ]; then
+  bundle_args+=(--runtime-repo="$FLATPAK_RUNTIME_REPO")
 fi
 
 flatpak build-bundle "${bundle_args[@]}" "$REPO_DIR" \
