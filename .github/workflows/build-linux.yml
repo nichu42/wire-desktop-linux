@@ -2,7 +2,7 @@ name: Build Linux AppImage
 
 on:
   schedule:
-    - cron: '17 5 * * *'
+    - cron: '17 5,17 * * *'
   workflow_dispatch:
     inputs:
       tag:

@@ -96,7 +96,7 @@ sha256sum -c SHA256SUMS
 gh attestation verify Wire-*.AppImage --repo ${REPO}
 \`\`\`
 
-For the Flatpak bundle (if attached):
+For the Flatpak bundle:
 
 \`\`\`bash
 sha256sum -c Wire-*.flatpak.sha256
