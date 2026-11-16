@@ -38,8 +38,10 @@ finish-args:
   - --talk-name=org.kde.kwalletd6
   - --talk-name=org.kde.kwalletd5
   - --filesystem=xdg-run/keyring
-  # System tray / StatusNotifierItem (AppIndicator).
+  # System tray / StatusNotifierItem (Chromium StatusIconLinuxDbus requests
+  # org.freedesktop.StatusNotifierItem-<pid>-1, where PID is 2 in the sandbox).
   - --talk-name=org.kde.StatusNotifierWatcher
+  - --own-name=org.freedesktop.StatusNotifierItem-2-1
 
 modules:
   - name: wire-desktop
