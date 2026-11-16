@@ -1,18 +1,44 @@
+diff --git a/electron/css/about.css b/electron/css/about.css
+index 4604e02..1e45358 100644
+--- a/electron/css/about.css
++++ b/electron/css/about.css
+@@ -55,3 +55,11 @@ img {
+   width: 64px;
+   height: 64px;
+ }
++
++.linux-build {
++  margin-top: 10px;
++  padding-top: 8px;
++  border-top: 1px solid #d4d4d4;
++  font-size: 10px;
++  color: #555;
++}
 diff --git a/electron/html/about.html b/electron/html/about.html
-index c37a569..63d1bd3 100644
+index c37a569..ef9f3d1 100644
 --- a/electron/html/about.html
 +++ b/electron/html/about.html
-@@ -13,6 +13,10 @@
+@@ -13,13 +13,14 @@
        <p class="webappAVSVersion copy">
          <span data-string="aboutWebappAVSVersion"></span> <span id="webappAVSVersion"></span>
        </p>
-+      <p id="linuxBuildRow" class="copy" hidden><span id="linuxBuild"></span></p>
-+      <p id="linuxRepoRow" hidden>
-+        <a id="linuxBuildLink" href="#" target="_blank"></a>
-+      </p>
-       <p>
-         <a href="#" data-href="aboutUpdatesUrl" target="_blank"><span data-string="aboutUpdate"></span></a>
-       </p>
+-      <p>
+-        <a href="#" data-href="aboutUpdatesUrl" target="_blank"><span data-string="aboutUpdate"></span></a>
+-      </p>
+-      <p>
+-        <a href="#" data-href="aboutReleasesUrl" target="_blank"><span data-string="aboutReleases"></span></a>
+-      </p>
+       <p><span id="copyright"></span></p>
++      <div id="linuxBuildSection" class="linux-build" hidden>
++        <p id="linuxBuildRow" class="copy" hidden><span id="linuxBuild"></span></p>
++        <p>
++          <span id="linuxRepoRow" hidden><a id="linuxBuildLink" href="#" target="_blank"></a> · </span>
++          <a href="#" data-href="aboutReleasesUrl" target="_blank"><span data-string="aboutReleases"></span></a>
++        </p>
++      </div>
+     </div>
+   </body>
+ </html>
 diff --git a/electron/src/locale/en-US.json b/electron/src/locale/en-US.json
 index 0c28fb0..1f53831 100644
 --- a/electron/src/locale/en-US.json
@@ -473,36 +499,40 @@ index 8f84ca9..c73d451 100644
 +  }
  };
 diff --git a/electron/src/preload/menu/preload-about.test.renderer.ts b/electron/src/preload/menu/preload-about.test.renderer.ts
-index ffc28e5..eb291a7 100644
+index ffc28e5..1445acb 100644
 --- a/electron/src/preload/menu/preload-about.test.renderer.ts
 +++ b/electron/src/preload/menu/preload-about.test.renderer.ts
-@@ -84,4 +84,49 @@ describe('loadedAboutScreen', () => {
+@@ -84,4 +84,56 @@ describe('loadedAboutScreen', () => {
      assert.strictEqual(webappAVSVersionElement.textContent, '');
      assert.strictEqual(sendSpy.calledOnceWith(EVENT_TYPE.ABOUT.LOCALE_VALUES, []), true);
    });
 +
 +  it('renders optional Linux build info and repo link when provided', () => {
 +    document.body.innerHTML = `
-+      <p id="linuxBuildRow" hidden><span id="linuxBuild"></span></p>
-+      <p id="linuxRepoRow" hidden><a id="linuxBuildLink" href="#"></a></p>
++      <div id="linuxBuildSection" hidden>
++        <p id="linuxBuildRow" hidden><span id="linuxBuild"></span></p>
++        <p><span id="linuxRepoRow" hidden><a id="linuxBuildLink" href="#"></a></span></p>
++      </div>
 +    `;
 +
 +    loadedAboutScreen(null, {
 +      copyright: '&copy; Wire Swiss GmbH',
 +      electronVersion: '3.46.5382',
-+      linuxBuild: 'Unofficial AppImage · v3.46.5382 (Electron 43.1.1)',
++      linuxBuild: 'Unofficial AppImage · v3.46.5382 (Electron 43.8.10)',
 +      linuxRepoUrl: 'https://github.com/nichu42/wire-desktop-linux',
 +      productName: 'Wire',
 +      webappVersion: '2019.04.10.0901',
 +    });
 +
++    const section = document.getElementById('linuxBuildSection');
 +    const buildRow = document.getElementById('linuxBuildRow');
 +    const buildElement = document.getElementById('linuxBuild');
 +    const repoRow = document.getElementById('linuxRepoRow');
 +    const buildLink = document.getElementById('linuxBuildLink');
 +
++    assert.strictEqual(section?.hidden, false);
 +    assert.strictEqual(buildRow?.hidden, false);
-+    assert.strictEqual(buildElement?.textContent, 'Unofficial AppImage · v3.46.5382 (Electron 43.1.1)');
++    assert.strictEqual(buildElement?.textContent, 'Unofficial AppImage · v3.46.5382 (Electron 43.8.10)');
 +    assert.strictEqual(repoRow?.hidden, false);
 +    assert.strictEqual(buildLink?.getAttribute('href'), 'https://github.com/nichu42/wire-desktop-linux');
 +    assert.strictEqual(buildLink?.textContent, 'github.com/nichu42/wire-desktop-linux');
@@ -510,8 +540,10 @@ index ffc28e5..eb291a7 100644
 +
 +  it('ignores non-https Linux repo URLs', () => {
 +    document.body.innerHTML = `
-+      <p id="linuxBuildRow" hidden><span id="linuxBuild"></span></p>
-+      <p id="linuxRepoRow" hidden><a id="linuxBuildLink" href="#"></a></p>
++      <div id="linuxBuildSection" hidden>
++        <p id="linuxBuildRow" hidden><span id="linuxBuild"></span></p>
++        <p><span id="linuxRepoRow" hidden><a id="linuxBuildLink" href="#"></a></span></p>
++      </div>
 +    `;
 +
 +    loadedAboutScreen(null, {
@@ -522,12 +554,13 @@ index ffc28e5..eb291a7 100644
 +      webappVersion: '2019.04.10.0901',
 +    });
 +
++    assert.strictEqual(document.getElementById('linuxBuildSection')?.hidden, true);
 +    assert.strictEqual(document.getElementById('linuxBuildRow')?.hidden, true);
 +    assert.strictEqual(document.getElementById('linuxRepoRow')?.hidden, true);
 +  });
  });
 diff --git a/electron/src/preload/menu/preload-about.ts b/electron/src/preload/menu/preload-about.ts
-index 8abbb92..6a54fc9 100644
+index 8abbb92..3dfd17d 100644
 --- a/electron/src/preload/menu/preload-about.ts
 +++ b/electron/src/preload/menu/preload-about.ts
 @@ -40,6 +40,8 @@ ipcRenderer.once(EVENT_TYPE.ABOUT.LOCALE_RENDER, (_event, labels: Record<string,
@@ -539,16 +572,18 @@ index 8abbb92..6a54fc9 100644
    productName: string;
    webappVersion: string;
    webappAVSVersion?: string;
-@@ -75,6 +77,27 @@ export function loadedAboutScreen(_event: unknown, details: Details): void {
+@@ -75,6 +77,35 @@ export function loadedAboutScreen(_event: unknown, details: Details): void {
      copyrightElement.textContent = details.copyright;
    }
  
 +  const {linuxBuild, linuxRepoUrl} = details;
++  let hasLinuxInfo = false;
 +  const linuxBuildRow = document.getElementById('linuxBuildRow');
 +  const linuxBuildElement = document.getElementById('linuxBuild');
 +  if (linuxBuildRow !== null && linuxBuildElement !== null && linuxBuild) {
 +    linuxBuildElement.textContent = linuxBuild;
 +    linuxBuildRow.hidden = false;
++    hasLinuxInfo = true;
 +  }
 +
 +  const linuxRepoRow = document.getElementById('linuxRepoRow');
@@ -562,6 +597,12 @@ index 8abbb92..6a54fc9 100644
 +    linuxBuildLink.href = linuxRepoUrl;
 +    linuxBuildLink.textContent = linuxRepoUrl.replace(/^https:\/\//, '');
 +    linuxRepoRow.hidden = false;
++    hasLinuxInfo = true;
++  }
++
++  const linuxBuildSection = document.getElementById('linuxBuildSection');
++  if (linuxBuildSection !== null && hasLinuxInfo) {
++    linuxBuildSection.hidden = false;
 +  }
 +
    const logoElement = document.getElementById('logo');
@@ -707,18 +748,20 @@ index 91e9a28..677b268 100644
    name: string;
    nameShort: string;
 diff --git a/electron/src/window/AboutWindow.ts b/electron/src/window/AboutWindow.ts
-index d14796b..6d8e62f 100644
+index d14796b..2d48ed9 100644
 --- a/electron/src/window/AboutWindow.ts
 +++ b/electron/src/window/AboutWindow.ts
-@@ -51,7 +51,7 @@ const ABOUT_WINDOW_ALLOWLIST = [
+@@ -51,8 +51,8 @@ const ABOUT_WINDOW_ALLOWLIST = [
  const PRELOAD_JS = path.join(APP_PATH, 'dist/preload/menu/preload-about.js');
  
  const WINDOW_SIZE = {
 -  HEIGHT: 256,
+-  WIDTH: 304,
 +  HEIGHT: 304,
-   WIDTH: 304,
++  WIDTH: 328,
  };
  
+ ipcMain.on(EVENT_TYPE.UI.WEBAPP_VERSION, (_event, version: string) => {
 @@ -141,6 +141,8 @@ function renderAboutWindow(activeWebappVersions: WebappVersions): void {
    aboutWindow.webContents.send(EVENT_TYPE.ABOUT.LOADED, {
      copyright: config.copyright,
