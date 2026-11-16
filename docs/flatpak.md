@@ -198,8 +198,9 @@ the build fingerprint, so changing either triggers a rebuild.
   camera capture requires a working `xdg-desktop-portal` camera backend. This
   path was verified with Electron 43.1.1; `--device=all` is not needed. If
   the desktop has no camera portal backend, video calls are not available in
-  the Flatpak; use the AppImage. The microphone uses PulseAudio; keyring uses
-  the host Secret Service. The tray talks to
+  the Flatpak; use the AppImage. The microphone uses PulseAudio; keyring and
+  `safeStorage` use the host Secret Service (`org.freedesktop.secrets`) or
+  KDE Wallet (`org.kde.kwalletd6` / `org.kde.kwalletd5`). The tray talks to
   `org.kde.StatusNotifierWatcher`; screen sharing uses the normal PipeWire
   portal where available.
 - **Profile:** the Flatpak uses `~/.var/app/<app-id>/`, separate from the

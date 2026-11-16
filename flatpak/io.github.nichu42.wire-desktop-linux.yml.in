@@ -33,8 +33,10 @@ finish-args:
   - --device=dri
   # Save attachments to the real ~/Downloads.
   - --filesystem=xdg-download
-  # Encrypted cookie storage via the host Secret Service.
+  # Encrypted cookie and safeStorage access via Secret Service or KDE Wallet.
   - --talk-name=org.freedesktop.secrets
+  - --talk-name=org.kde.kwalletd6
+  - --talk-name=org.kde.kwalletd5
   - --filesystem=xdg-run/keyring
   # System tray / StatusNotifierItem (AppIndicator).
   - --talk-name=org.kde.StatusNotifierWatcher
