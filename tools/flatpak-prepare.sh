@@ -12,14 +12,14 @@
 # Usage:
 #   tools/flatpak-prepare.sh [tag] [--electron supported|latest|upstream] \
 #     [--builder latest|upstream] [--electron-version v] [--builder-version v] \
-#     [--fuses-version v] [--output path]
+#     [--fuses-version v] [--runtime branch] [--node major] [--output path]
 #
 # Environment:
 #   ELECTRON_POLICY   Electron version policy (default: supported)
 #   BUILDER_POLICY    electron-builder version policy (default: latest)
-#   RUNTIME_VERSION   Freedesktop runtime/BaseApp branch (default: 26.08)
+#   RUNTIME_VERSION   Freedesktop runtime/BaseApp branch (default: auto via flatpak-resolve.sh)
 #   BASE_VERSION      Electron2 BaseApp branch (default: RUNTIME_VERSION)
-#   NODE_VERSION      Node SDK extension major (default: 24)
+#   NODE_VERSION      Node SDK extension major (default: auto via flatpak-resolve.sh)
 #   OUTPUT            Rendered manifest path
 
 set -euo pipefail
@@ -33,6 +33,9 @@ BUILDER_POLICY="${BUILDER_POLICY:-latest}"
 TARGET_ELECTRON="${TARGET_ELECTRON:-}"
 TARGET_BUILDER="${TARGET_BUILDER:-}"
 TARGET_FUSES="${TARGET_FUSES:-}"
+RUNTIME_VERSION="${RUNTIME_VERSION:-}"
+BASE_VERSION="${BASE_VERSION:-}"
+NODE_VERSION="${NODE_VERSION:-}"
 OUTPUT="${OUTPUT:-}"
 
 while [ "$#" -gt 0 ]; do
@@ -43,6 +46,8 @@ while [ "$#" -gt 0 ]; do
     --electron-version) TARGET_ELECTRON="${2:-}"; shift 2 ;;
     --builder-version) TARGET_BUILDER="${2:-}"; shift 2 ;;
     --fuses-version) TARGET_FUSES="${2:-}"; shift 2 ;;
+    --runtime) RUNTIME_VERSION="${2:-}"; shift 2 ;;
+    --node) NODE_VERSION="${2:-}"; shift 2 ;;
     --output) OUTPUT="${2:-}"; shift 2 ;;
     -h | --help)
       sed -n '3,23p' "$0" | sed 's/^# \{0,1\}//'
@@ -89,9 +94,23 @@ for cmd in curl git jq sha256sum node flatpak-node-generator; do
   fi
 done
 
-RUNTIME_VERSION="${RUNTIME_VERSION:-26.08}"
+if [ -z "$RUNTIME_VERSION" ] || [ "$RUNTIME_VERSION" = "latest" ] || [ -z "$NODE_VERSION" ] || [ "$NODE_VERSION" = "latest" ]; then
+  resolve_args=()
+  if [ -n "$RUNTIME_VERSION" ]; then
+    resolve_args+=(--runtime "$RUNTIME_VERSION")
+  fi
+  if [ -n "$NODE_VERSION" ]; then
+    resolve_args+=(--node "$NODE_VERSION")
+  fi
+  flatpak_env="$(bash "$ROOT/tools/flatpak-resolve.sh" "${resolve_args[@]}")"
+  if [ -z "$RUNTIME_VERSION" ] || [ "$RUNTIME_VERSION" = "latest" ]; then
+    RUNTIME_VERSION="$(jq -r '.runtime' <<<"$flatpak_env")"
+  fi
+  if [ -z "$NODE_VERSION" ] || [ "$NODE_VERSION" = "latest" ]; then
+    NODE_VERSION="$(jq -r '.node' <<<"$flatpak_env")"
+  fi
+fi
 BASE_VERSION="${BASE_VERSION:-$RUNTIME_VERSION}"
-NODE_VERSION="${NODE_VERSION:-24}"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT

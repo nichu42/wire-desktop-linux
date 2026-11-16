@@ -64,9 +64,9 @@ updated via `flatpak update --user`.
 
 ## Build locally
 
-Requirements: Flatpak, `flatpak-builder`, `flatpak-node-generator`, Node 22,
-`jq`, `curl`, `git`, `patch`, and the current Freedesktop runtime/SDK/BaseApp
-(26.08 at the time of writing).
+Requirements: Flatpak, `flatpak-builder`, `flatpak-node-generator`, Node 22+,
+`jq`, `curl`, `git`, `patch`, and the active Freedesktop runtime/SDK/BaseApp
+resolved by `tools/flatpak-resolve.sh` (e.g. `26.08`).
 
 ```sh
 # 1. Resolve the tag, pin the config archive and generate offline sources.
@@ -175,10 +175,11 @@ summary; a clean run closes the issue. If a registry, Flathub or release-schedul
 lookup fails, the check exits as incomplete, reports a warning and leaves open
 issues untouched. The check is advisory: it does not gate the build or publish.
 
-`RUNTIME_VERSION` and `NODE_VERSION` are defined once in
-`.github/workflows/flatpak.yml` and mirrored by the defaults in
-`tools/flatpak-prepare.sh` and `tools/flatpak-render-manifest.mjs`. Both feed
-the build fingerprint, so changing either triggers a rebuild.
+`tools/flatpak-resolve.sh` resolves the newest `org.freedesktop.Platform` /
+`org.electronjs.Electron2.BaseApp` branch and newest active LTS
+`org.freedesktop.Sdk.Extension.node*` available on Flathub. Both feed
+`flatpak_fingerprint`, so a new compatible runtime or LTS Node extension triggers
+a rebuild automatically.
 
 ## Known limitations
 

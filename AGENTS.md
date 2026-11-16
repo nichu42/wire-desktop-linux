@@ -96,6 +96,7 @@ Flatpak repository.
 | `patches/02-flatpak-runtime.patch` | Hides the Flatpak-incompatible autostart toggle |
 | `flatpak/` | Manifest template, desktop entry, metainfo, zypak wrapper, Flatpak electron-builder config |
 | `tools/resolve-deps.sh` | Resolves Electron, `electron-builder` and `@electron/fuses` policy versions |
+| `tools/flatpak-resolve.sh` | Resolves the newest compatible Flathub runtime and active LTS Node SDK extension |
 | `tools/flatpak-prepare.sh` | Resolves the tag/deps/config, updates lockfile, generates offline sources, renders manifest |
 | `tools/flatpak-render-manifest.mjs` | Fills the Flatpak manifest template |
 | `tools/flatpak-repo.sh` | Exports/signs the OSTree repo and builds a bundle |
@@ -232,9 +233,10 @@ Do not prune releases; they are kept for rollback and version pinning.
   `yarn up --mode=update-lockfile` during `tools/flatpak-prepare.sh`, generates
   offline sources with `flatpak-node-generator`, replaces `postinstall` with the
   pinned offline config sources, and runs `yarn install --immutable` offline.
-  - **Flatpak runtime/SDK:** `RUNTIME_VERSION` and `NODE_VERSION` are pinned in
-    `flatpak.yml` and mirrored in `tools/flatpak-prepare.sh` and
-    `tools/flatpak-render-manifest.mjs`.
+  - **Flatpak runtime/SDK:** `tools/flatpak-resolve.sh` resolves the newest
+    compatible Freedesktop runtime + `Electron2.BaseApp` branch and newest
+    active LTS Node SDK extension on Flathub (`RUNTIME_VERSION` /
+    `NODE_VERSION` env or `--runtime` / `--node` can override).
 
 ## Local checks
 
@@ -325,12 +327,10 @@ Gear Lever; do not use both for the same install.
   objects to an object store and update the `.flatpakrepo` URL.
 - **Flatpak build failed on schedule**: check the `flatpak-failure` issue/run
   log; push a fix; a successful scheduled run closes it.
-- **Flatpak dependency drift**: the daily `dependency-check` job reports an
+- **Flatpak dependency drift**: the `dependency-check` job reports an
   Electron pin outside npm's supported window, an EOL or outdated Freedesktop
-  runtime, or an EOL Node SDK extension. Bump `RUNTIME_VERSION` and
-  `NODE_VERSION` in `flatpak.yml` plus the defaults in `tools/flatpak-prepare.sh`
-  and `tools/flatpak-render-manifest.mjs` together, or document an Electron
-  exception.
+  runtime (e.g. if `Electron2.BaseApp` has not branched yet), or an EOL Node
+  SDK extension. Check `tools/flatpak-resolve.sh` or document an exception.
 
 ## Repository settings
 

@@ -9,8 +9,8 @@
 # Flathub and the Node release schedule.
 #
 # Usage:
-#   tools/flatpak-dependencies.sh [--tag windows/x.y.z] [--runtime 26.08] \
-#     [--node 24] [--report FILE]
+#   tools/flatpak-dependencies.sh [--tag windows/x.y.z] [--runtime branch] \
+#     [--node major] [--report FILE]
 #
 # The Flathub checks need flatpak with a configured `flathub` remote.
 # Exit status: 0 = all current, 1 = findings, 2 = incomplete lookup
@@ -20,8 +20,8 @@ set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 TAG=""
-RUNTIME_VERSION="${RUNTIME_VERSION:-26.08}"
-NODE_VERSION="${NODE_VERSION:-24}"
+RUNTIME_VERSION="${RUNTIME_VERSION:-}"
+NODE_VERSION="${NODE_VERSION:-}"
 REPORT=""
 
 while [ "$#" -gt 0 ]; do
@@ -47,6 +47,27 @@ for cmd in curl jq flatpak date; do
     exit 2
   fi
 done
+
+if [ -z "$RUNTIME_VERSION" ] || [ "$RUNTIME_VERSION" = "latest" ] || [ -z "$NODE_VERSION" ] || [ "$NODE_VERSION" = "latest" ]; then
+  resolve_args=()
+  if [ -n "$RUNTIME_VERSION" ]; then
+    resolve_args+=(--runtime "$RUNTIME_VERSION")
+  fi
+  if [ -n "$NODE_VERSION" ]; then
+    resolve_args+=(--node "$NODE_VERSION")
+  fi
+  if flatpak_env="$(bash "$ROOT/tools/flatpak-resolve.sh" "${resolve_args[@]}" 2>/dev/null)"; then
+    if [ -z "$RUNTIME_VERSION" ] || [ "$RUNTIME_VERSION" = "latest" ]; then
+      RUNTIME_VERSION="$(jq -r '.runtime' <<<"$flatpak_env")"
+    fi
+    if [ -z "$NODE_VERSION" ] || [ "$NODE_VERSION" = "latest" ]; then
+      NODE_VERSION="$(jq -r '.node' <<<"$flatpak_env")"
+    fi
+  else
+    echo "flatpak-dependencies: could not resolve runtime/Node from Flathub" >&2
+    exit 2
+  fi
+fi
 
 if [ -z "$TAG" ]; then
   if ! command -v gh >/dev/null 2>&1; then

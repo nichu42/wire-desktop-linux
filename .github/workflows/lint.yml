@@ -44,9 +44,9 @@ jobs:
           sudo apt-get install -y --no-install-recommends shellcheck
           shellcheck install.sh tools/release-notes.sh tools/smoke-test.sh \
             tools/resolve-deps.sh \
-            tools/flatpak-prepare.sh tools/flatpak-repo.sh tools/flatpak-keygen.sh \
-            tools/flatpak-dependencies.sh tools/smoke-test-flatpak.sh \
-            flatpak/wire-desktop-flatpak.sh
+            tools/flatpak-resolve.sh tools/flatpak-prepare.sh tools/flatpak-repo.sh \
+            tools/flatpak-keygen.sh tools/flatpak-dependencies.sh \
+            tools/smoke-test-flatpak.sh flatpak/wire-desktop-flatpak.sh
 
       - name: Node syntax
         run: |
