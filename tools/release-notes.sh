@@ -34,7 +34,7 @@ REVISION="$(info revision)"
 EOL_ESCAPE="$(info eol_escape)"
 
 cat <<EOF
-Unofficial Linux AppImage build of Wire Desktop.
+Unofficial Linux builds of Wire Desktop.
 
 - Upstream: [\`${TAG}\`](https://github.com/wireapp/wire-desktop/tree/${TAG}) (commit \`${COMMIT}\`)
 - Electron: **${ELECTRON}** (upstream pin: ${UPSTREAM_ELECTRON})
@@ -84,12 +84,10 @@ flatpak remote-add --if-not-exists --user wire \\
 flatpak install --user wire io.github.nichu42.wire-desktop-linux
 \`\`\`
 
-### AppImage with Gear Lever (recommended)
+### AppImage
 
 1. Download \`Wire-*.AppImage\` below.
-2. Open Gear Lever and add the AppImage (or drag and drop it).
-3. Gear Lever reads the embedded update source and offers future releases as
-   updates.
+2. Open [Gear Lever](https://gearlever.mijorus.it) and add the AppImage (or drag and drop it) for menu integration and updates, or run it directly / install with \`install.sh\`.
 
 ## Verify
 

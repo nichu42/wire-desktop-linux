@@ -67,10 +67,10 @@ The Flatpak profile is under
 `~/.config/Wire`; see [docs/flatpak.md](docs/flatpak.md) for migration details
 and build/signing instructions.
 
-### Gear Lever (recommended for the AppImage)
+### AppImage with Gear Lever
 
 [Gear Lever](https://gearlever.mijorus.it) integrates AppImages into your app
-menu and manages updates.
+menu and is the recommended update path if you choose the AppImage:
 
 1. Download `Wire-*.AppImage` from
    [Releases](https://github.com/nichu42/wire-desktop-linux/releases/latest).
@@ -85,7 +85,7 @@ If automatic detection ever fails: **Set update source** → GitHub →
 > Do **not** also use `install.sh` for an install managed by Gear Lever — you
 > would end up with two copies and duplicate menu entries.
 
-### install.sh (alternative)
+### AppImage with install.sh (alternative)
 
 For systems without Gear Lever. Installs into `~/.local/bin` and
 `~/.local/share`, no root required for the normal install:
@@ -102,7 +102,7 @@ Re-run the same command to update. `--version <release-tag>` pins a release
 `--dry-run` verifies without writing, `--uninstall` removes the integration
 (the profile in `~/.config/Wire` is kept).
 
-### Manual
+### Manual AppImage install
 
 Download the AppImage, `chmod +x` it, and run it. The AppImage uses a static
 runtime, so FUSE is not required.
