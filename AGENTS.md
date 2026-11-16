@@ -17,10 +17,11 @@ Flatpak repository.
 - Upstream build source: newest tag matching `windows/*`.
 - Current release: `gh release list --repo nichu42/wire-desktop-linux --limit 1`.
   Do not hardcode version numbers in these docs.
-- AppImage is the primary single-file artifact; the Flatpak is published from a
-  signed OSTree repository on GitHub Pages. Flathub is intentionally out of
-  scope. Keep packaging-specific decisions in `tools/` and `flatpak/` instead of
-  assuming one format.
+- AppImage is built as a single-file artifact; the Flatpak is published from a
+  signed OSTree repository on GitHub Pages (with a single-file `.flatpak` bundle
+  attached to Releases). Flathub is intentionally out of scope. Keep
+  packaging-specific decisions in `tools/` and `flatpak/` instead of assuming
+  one format.
 
 ## Invariants
 
@@ -31,7 +32,7 @@ Flatpak repository.
    unpatched and say so in the release notes; never delete the tests to make it
    apply. The Flatpak fails closed when either patch does not apply.
 3. Never publish without that format's full gate. AppImage: upstream tests,
-   artifact assertions, runtime smoke on Ubuntu 24.04 and 22.04, and
+   artifact assertions, runtime smoke on Ubuntu 26.04 and 22.04, and
    draft-asset verification; releases are created as drafts and only published
    after verification. Flatpak: offline source build, `assert-flatpak`
    assertions, manifest/AppStream lint, and a signed-repo install plus smoke
@@ -41,7 +42,7 @@ Flatpak repository.
    permissions. Never give the build job a write token.
 5. Pin every third-party action to a full commit SHA. Dependabot updates them.
    Do not use `ubuntu-latest` for the artifact build; use explicit LTS labels.
-6. Do not add a lockfile or pin app dependencies in this repository. Resolve
+6. Do not commit override lockfiles or pin app dependencies in this repository. Resolve
    Electron and electron-builder at build time with `yarn up`; never edit the
    lockfile with `jq`, add a `resolutions` block, or use
    `COREPACK_ENABLE_STRICT`/immutable-install environment hacks.
@@ -78,8 +79,7 @@ Flatpak repository.
     read-only and must never receive `FLATPAK_GPG_PRIVATE_KEY`. Publish only
     from the protected `linux` branch or a tag.
 17. Keep the GitHub Pages repository URL and Flatpak app ID stable. A change
-    breaks installed remotes; the app ID is fixed before the first public
-    release.
+    breaks installed remotes; the app ID is fixed.
 18. The Flatpak dependency check is advisory. It reports out-of-support
     dependencies in a `flatpak-dependency` issue and must never gate the build
     or publish. Electron and `electron-builder` follow the same `supported` /
@@ -140,7 +140,7 @@ Jobs: `resolve` → `build` → `smoke-2204` → `publish`, plus `report-failure
 release; a failure creates a `Canary build failure` issue.
 
 `flatpak.yml` triggers every 6 hours (`00:37, 06:37, 12:37, 18:37 UTC`), on `workflow_dispatch`
-(`tag`, `electron`, `builder`, `force`, `publish`) and pushes to the Flatpak files. Jobs:
+(`tag`, `electron`, `builder`, `force`, `publish`, `runner`) and pushes to the Flatpak files. Jobs:
 `resolve` → `build` (offline source build, test-signed repo, smoke, manifest/
 AppStream lint) → `publish` (artifact-to-release check, production GPG signing,
 signed repo and single-file bundle install/smoke, attestation, Pages, a check of
@@ -197,8 +197,9 @@ gh issue list --repo nichu42/wire-desktop-linux --label flatpak-dependency
   `Wire-<version>-x86_64.flatpak.sha256` (attached by `flatpak.yml` after its
   full gate and carried over on AppImage-only `-rN` rebuilds).
 - `build-info.json` (schema 1) records upstream tag/commit, upstream and
-  shipped Electron, builder, fuses, revision, fingerprint, lockfile hash,
-  policy, EOL flag, build time and run id.
+  shipped Electron, builder, fuses, revision, fingerprint, runtime patch status,
+  lockfile hash, policy, EOL flag, build time and run id (plus Flatpak-specific
+  runtime, BaseApp, Node, config, bundle SHA-256 and GPG fingerprint on Pages).
 - Publish flow: draft → attest provenance → download assets back and verify →
   publish. Never upload directly to a published release before verification.
 - The signed OSTree Flatpak repository is published to
@@ -243,7 +244,7 @@ Do not prune releases; they are kept for rollback and version pinning.
 The build runs in CI; a full local build needs Node 22 (`.node-version`), the
 committed Yarn 3.3.1, Xvfb, `x11-utils`, `zsync`, `binutils` and `shellcheck`.
 The Flatpak build additionally needs Flatpak, `flatpak-builder`,
-`flatpak-node-generator`, `jq` and `patch`.
+`flatpak-node-generator`, `elfutils`, `dbus-x11`, `jq` and `patch`.
 
 ```bash
 node .yarn/releases/yarn-3.3.1.cjs install
@@ -310,9 +311,10 @@ Gear Lever; do not use both for the same install.
   the patch or tooling, push; a successful scheduled run closes the issue.
 - **Gear Lever metadata**: if detection breaks, verify `.upd_info`, the
   `.zsync` SHA-1, the asset glob and `/releases/latest`.
-- **Flatpak new upstream release**: the `flatpak.yml` schedule resolves it.
-  If the config tag or lockfile changed, rerun `tools/flatpak-prepare.sh` and
-  commit any packaging changes; the build job regenerates sources each run.
+- **Flatpak new upstream release**: the `flatpak.yml` schedule resolves it and
+  regenerates the lockfile overrides, config pin and offline sources each run;
+  manual intervention is only needed if patches or packaging templates break
+  (test locally with `tools/flatpak-prepare.sh`).
 - **Flatpak patch fails**: the build fails closed; refresh `patches/01` and/or
   `patches/02` against the target tag. Never ship a Flatpak without both.
 - **Flatpak repository/signing**: run `tools/flatpak-keygen.sh` once, add the

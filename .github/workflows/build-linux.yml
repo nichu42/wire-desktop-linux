@@ -386,7 +386,7 @@ jobs:
           "$appimage" --appimage-extract >/dev/null
           node tools/assert-artifact.mjs squashfs-root "$VERSION" "$ELECTRON" "$appimage"
 
-      - name: Runtime smoke test (Ubuntu 24.04)
+      - name: Runtime smoke test (build runner)
         working-directory: src
         run: xvfb-run -a bash tools/smoke-test.sh squashfs-root
 

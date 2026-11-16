@@ -160,7 +160,7 @@ scheduled run closes open issues.
 
 The Flatpak uses the same Electron (`supported` / `latest` / `upstream`) and
 `electron-builder` (`latest` / `upstream`) policy as the AppImage via
-`tools/resolve-deps.sh`. The `dependency-check` job runs on the daily schedule
+`tools/resolve-deps.sh`. The `dependency-check` job runs on the 6-hour schedule
 and on manual dispatches (it never runs on push and never receives the signing
 key) and reports:
 
