@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 # Install or update the unofficial Wire Linux AppImage in the user's home
 # directory. Gear Lever is the recommended update path; this script is for
@@ -162,7 +162,7 @@ install -m 644 "$tmp/wire-desktop.metainfo.xml" "$METAINFO"
 cat > "$DESKTOP" <<EOF
 [Desktop Entry]
 Type=Application
-Name=Wire
+Name=Wire Desktop (unofficial)
 GenericName=Secure messenger
 Comment=Unofficial Linux AppImage build of Wire Desktop
 Exec="$APPIMAGE" %U

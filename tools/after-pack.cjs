@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Flip the same Electron fuses upstream Wire uses for its production builds.
 // `EnableEmbeddedAsarIntegrityValidation` is deliberately left disabled: it is

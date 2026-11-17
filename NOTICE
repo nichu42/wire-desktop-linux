@@ -1,0 +1,37 @@
+Wire Desktop for Linux — unofficial Flatpak and AppImage builds
+================================================================
+
+This distribution bundles Wire Desktop, the desktop client of Wire.
+
+  Upstream project : https://github.com/wireapp/wire-desktop
+  Copyright        : Wire Swiss GmbH and contributors
+  Licence          : GNU General Public License, version 3, or (at your
+                     option) any later version — GPL-3.0-or-later.
+                     The full text is the LICENSE file next to this notice.
+
+Not published, sponsored or endorsed by Wire Swiss GmbH. "Wire" is a
+trademark of Wire Swiss GmbH. These builds receive no QA from Wire or from
+the packager (nichu42) and come with no warranty of any kind.
+
+Modifications made for this distribution
+----------------------------------------
+Source: this fork. The patches are in patches/ and are applied to the
+upstream commit named below — nothing is patched at runtime.
+
+  01-linux-runtime.patch     restores the Linux runtime behaviour that
+                             upstream removed from the desktop client and
+                             adds the "unofficial build" line plus a link to
+                             the packager's repository to the About window.
+  02-flatpak-runtime.patch   Flatpak-specific system-menu and Linux backend
+                             integration.
+
+The upstream tag and commit each release is built from are recorded in the
+Flatpak manifest (flatpak/io.github.nichu42.wire-desktop-linux.yml) and in
+the AppImage build workflow (.github/workflows/build-linux.yml).
+
+Bundled third-party components keep their own licences
+------------------------------------------------------
+The Electron and Chromium notices ship inside the application directory as
+LICENSE.electron.txt and LICENSES.chromium.html. Flatpak build-time and
+runtime dependencies install their own licences under /app/share/licenses/
+(see share/licenses/<app-id>/ for the licences of this package itself).

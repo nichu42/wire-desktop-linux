@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 # Resolve the Electron, electron-builder and @electron/fuses versions for a
 # Linux build according to the repository's support policy.

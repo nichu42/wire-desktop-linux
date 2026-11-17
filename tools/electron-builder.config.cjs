@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // electron-builder configuration for the unofficial Linux AppImage.
 // Version-aware for electron-builder 25 (flat desktop entry) and 26+
@@ -16,7 +16,7 @@ const revision = process.env.RELEASE_REVISION ? `-r${process.env.RELEASE_REVISIO
 const artifactName = `Wire-\${version}${revision}_\${arch}.\${ext}`;
 
 const desktopEntry = {
-  Name: 'Wire',
+  Name: 'Wire Desktop (unofficial)',
   GenericName: 'Secure messenger',
   Comment: packageJson.description || 'The most secure collaboration platform.',
   Categories: 'Network;InstantMessaging;Chat;VideoConference;',
@@ -78,6 +78,10 @@ module.exports = {
       from: 'resources/io.github.nichu42.WireDesktop.metainfo.xml',
       to: 'usr/share/metainfo/io.github.nichu42.WireDesktop.metainfo.xml',
     },
+    // Compliance: upstream's licence text and this distribution's NOTICE ship
+    // next to the executable, beside Electron's and Chromium's own notices.
+    {from: 'LICENSE', to: 'LICENSE'},
+    {from: 'NOTICE', to: 'NOTICE'},
   ],
   linux: {
     target: ['AppImage'],

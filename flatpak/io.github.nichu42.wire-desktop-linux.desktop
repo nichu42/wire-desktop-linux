@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=Wire
+Name=Wire Desktop (unofficial)
 GenericName=Secure messenger
 Comment=Unofficial Flatpak build of Wire Desktop
 Exec=wire-desktop-flatpak %U

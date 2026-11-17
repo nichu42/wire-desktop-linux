@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 # Flatpak manifest template for the unofficial Wire Desktop Linux build.
 # Render it with `node tools/flatpak-render-manifest.mjs` (or
@@ -118,7 +118,14 @@ modules:
       - install -Dm644 ../flatpak/io.github.nichu42.wire-desktop-linux.metainfo.xml /app/share/metainfo/io.github.nichu42.wire-desktop-linux.metainfo.xml
       - sed -i "s/%VERSION%/$APP_VERSION/g; s/%DATE%/$BUILD_DATE/g" /app/share/metainfo/io.github.nichu42.wire-desktop-linux.metainfo.xml
       - install -Dm644 resources/icons/256x256.png /app/share/icons/hicolor/256x256/apps/io.github.nichu42.wire-desktop-linux.png
+
+      # Licence and attribution travel with the binary: upstream's GPL text,
+      # this distribution's NOTICE (attribution + list of modifications), and
+      # both again inside the app directory where a user actually looks.
       - install -Dm644 LICENSE /app/share/licenses/io.github.nichu42.wire-desktop-linux/LICENSE
+      - install -Dm644 ../NOTICE /app/share/licenses/io.github.nichu42.wire-desktop-linux/NOTICE
+      - install -Dm644 LICENSE /app/wire-desktop/LICENSE
+      - install -Dm644 ../NOTICE /app/wire-desktop/NOTICE
 
       # Fail the build if the packaged tree does not match the production
       # expectations (asar, fuses, desktop/metainfo, wrapper, size).
@@ -137,6 +144,10 @@ modules:
       - type: file
         path: ../patches/02-flatpak-runtime.patch
         dest: patches
+
+      # Attribution notice installed into the app and share/licenses.
+      - type: file
+        path: ../NOTICE
 
       - type: dir
         path: ../tools

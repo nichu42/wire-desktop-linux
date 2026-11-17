@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // electron-builder configuration for the Flatpak build. It reuses the AppImage
 // config for asar, fuses and the production file excludes, but only produces an

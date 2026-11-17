@@ -134,7 +134,7 @@
     "webpack-cli": "5.1.4"
   },
   "homepage": "https://wire.com",
-  "license": "GPL-3.0",
+  "license": "GPL-3.0-or-later",
   "main": "electron/dist/main.js",
   "name": "wire-desktop",
   "optionalDependencies": {

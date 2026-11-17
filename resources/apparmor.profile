@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 # AppArmor profile for Ubuntu 24.04+, where
 # kernel.apparmor_restrict_unprivileged_userns=1 blocks Chromium's user-namespace

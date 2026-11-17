@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Stamp the production runtime configuration into an upstream wire-desktop
 // checkout. Mirrors upstream's bin/build-tools/lib/commonConfig.ts so the

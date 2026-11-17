@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Render the Flatpak manifest template with the current upstream release,
 // Electron and production-config values. The rendered file is a build input,

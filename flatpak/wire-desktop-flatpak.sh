@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 # Flatpak entry point. zypak-wrapper makes Electron use the sandbox provided by
 # Flatpak instead of the setuid helper that is not available inside /app.

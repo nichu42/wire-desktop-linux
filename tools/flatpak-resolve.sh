@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 # Resolve the newest compatible Freedesktop runtime / Electron2 BaseApp branch
 # and active LTS Node SDK extension on Flathub.

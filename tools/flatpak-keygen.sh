@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 # Generate the dedicated Flatpak repository signing key and print the values
 # that must be stored as GitHub Actions secrets. Run this on a trusted machine,

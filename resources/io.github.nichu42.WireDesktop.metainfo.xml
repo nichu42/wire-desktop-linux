@@ -2,10 +2,10 @@
 <!-- SPDX-License-Identifier: CC0-1.0 -->
 <component type="desktop-application">
   <id>io.github.nichu42.WireDesktop</id>
-  <name>Wire</name>
+  <name>Wire Desktop (unofficial)</name>
   <summary>Unofficial Linux AppImage builds of Wire Desktop</summary>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>GPL-3.0-only</project_license>
+  <project_license>GPL-3.0-or-later</project_license>
   <description>
     <p>
       Unofficial community AppImage builds of the Wire desktop client for Linux,

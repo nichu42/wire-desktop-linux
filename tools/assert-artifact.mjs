@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Assert that the extracted AppImage is the production build we intended.
 // Usage: node tools/assert-artifact.mjs <squashfs-root> <version> <electron> <appimage>
@@ -39,6 +39,20 @@ const readAsarJson = (name) => JSON.parse(asar.extractFile(asarPath, name).toStr
 const wireJson = readAsarJson('electron/wire.json');
 const packageJson = readAsarJson('package.json');
 check(wireJson.name === 'Wire', `wire.json name is ${wireJson.name}`);
+
+// The bundle must carry upstream's licence and this distribution's NOTICE.
+for (const name of ['LICENSE', 'NOTICE']) {
+  const bundled = path.join(root, name);
+  check(fs.existsSync(bundled), `missing ${name} in the AppImage`);
+  if (fs.existsSync(bundled)) {
+    const text = fs.readFileSync(bundled, 'utf8');
+    check(text.length > 500, `${name} is suspiciously short (${text.length} bytes)`);
+    check(
+      /Wire Swiss|GNU GENERAL PUBLIC LICENSE/.test(text),
+      `${name} does not look like a licence/attribution document`,
+    );
+  }
+}
 check(
   wireJson.environment === 'production',
   `wire.json environment is ${wireJson.environment}`,

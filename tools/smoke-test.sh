@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 # Runtime smoke test for the extracted AppImage. The packaged Electron build
 # deliberately disables the --inspect fuse (as upstream does), so Playwright's

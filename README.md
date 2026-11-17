@@ -162,8 +162,26 @@ for Flatpak operations.
 
 ## License and disclaimer
 
-GPL-3.0-only, matching upstream. Source: the upstream tag recorded in each
-release, plus `patches/` and `tools/` in this repository.
+GPL-3.0-**or-later**, matching upstream: Wire's source files carry the
+"either version 3 of the License, or (at your option) any later version"
+boilerplate, so this fork keeps that grant rather than narrowing it. Source:
+the upstream tag/commit recorded in each release, plus `patches/` and `tools/`
+in this repository.
+
+Every artifact ships the attribution instead of only pointing at it:
+
+| Where | What |
+|---|---|
+| `<app>/LICENSE`, `<app>/NOTICE` (AppImage and Flatpak app directory) | Upstream's GPL text and the notice naming the upstream commit, the copyright holder and the modifications applied |
+| `/app/share/licenses/io.github.nichu42.wire-desktop-linux/` (Flatpak) | The same two files, in the location Flatpak tooling expects |
+| `<app>/LICENSE.electron.txt`, `<app>/LICENSES.chromium.html` | Electron and Chromium third-party notices, as shipped by electron-builder |
+
+`NOTICE` lists the changes this fork makes (`patches/01-linux-runtime.patch`,
+`02-flatpak-runtime.patch`); the About window repeats the "unofficial" build
+line and links back to this repository. The launcher and AppStream entries are
+named **Wire Desktop (unofficial)** so no official-looking name is shipped —
+the window class stays `Wire`, which keeps taskbar grouping and pinning
+working.
 
 Provided **as-is, without warranty of any kind**; use at your own risk. The
 maintainer accepts no liability for data loss, account or service issues, or

@@ -266,6 +266,9 @@ jobs:
           mkdir -p src/resources
           cp "$GITHUB_WORKSPACE/resources/io.github.nichu42.WireDesktop.metainfo.xml" src/resources/
           cp "$GITHUB_WORKSPACE/resources/apparmor.profile" src/resources/
+          # electron-builder copies LICENSE and NOTICE next to the executable
+          # (extraFiles); LICENSE is already part of the upstream clone.
+          cp "$GITHUB_WORKSPACE/NOTICE" src/NOTICE
 
       - name: Lint scripts
         run: |

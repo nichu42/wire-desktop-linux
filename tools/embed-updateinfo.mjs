@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // electron-builder does not write AppImage update information, but its static
 // runtime has a 1024-byte .upd_info section. Write the Gear Lever/AppImageUpdate

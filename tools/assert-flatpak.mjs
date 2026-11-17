@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Assert that the installed Flatpak tree is the production build we intended.
 // This runs inside the flatpak-builder sandbox after the app has been installed
@@ -178,7 +178,7 @@ if (exists(metainfoPath)) {
     metainfo.includes(`<release version="${expectedVersion}"`),
     'metainfo release version does not match',
   );
-  check(metainfo.includes('<project_license>GPL-3.0-only</project_license>'), 'metainfo license is wrong');
+  check(metainfo.includes('<project_license>GPL-3.0-or-later</project_license>'), 'metainfo license is wrong');
   check(!metainfo.includes('%VERSION%') && !metainfo.includes('%DATE%'), 'metainfo placeholders remain');
 }
 
@@ -199,6 +199,22 @@ if (exists(wrapperPath)) {
 
 const licensePath = path.join(root, 'share', 'licenses', appId, 'LICENSE');
 check(exists(licensePath), `missing ${licensePath}`);
+
+// Attribution has to travel with the binary, not only live in the README.
+const noticePath = path.join(root, 'share', 'licenses', appId, 'NOTICE');
+check(exists(noticePath), `missing ${noticePath}`);
+for (const name of ['LICENSE', 'NOTICE']) {
+  const bundled = path.join(appDir, name);
+  check(exists(bundled), `missing ${bundled}`);
+  if (exists(bundled)) {
+    const text = fs.readFileSync(bundled, 'utf8');
+    check(text.length > 500, `${name} is suspiciously short (${text.length} bytes)`);
+    check(
+      /Wire Swiss|GNU GENERAL PUBLIC LICENSE/.test(text),
+      `${name} does not look like a licence/attribution document`,
+    );
+  }
+}
 
 for (const forbidden of ['.upd_info', '.zsync', 'apparmor.profile']) {
   check(!exists(path.join(root, forbidden)), `Flatpak contains AppImage artifact ${forbidden}`);
