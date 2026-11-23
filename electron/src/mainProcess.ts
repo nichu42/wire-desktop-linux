@@ -74,12 +74,7 @@ import {
 } from './logging/desktopLogWriter';
 import {getLogger} from './logging/getLogger';
 import {scheduleLogCleanup} from './logging/logCleanupScheduler';
-import {
-  getLogDirectory,
-  getMainProcessLogPath,
-  getWebViewApplicationLogPath,
-  getWebViewLogPath,
-} from './logging/logPaths';
+import {getLogDirectory, getWebViewApplicationLogPath, getWebViewLogPath} from './logging/logPaths';
 import {initializeDesktopLogLifecycle} from './logging/logStartup';
 import {registerRendererDiagnostics} from './logging/rendererDiagnostics';
 import {createStructuredWebappLogger} from './logging/structuredWebappLogger';
@@ -538,6 +533,7 @@ const bindIpcEvents = (): void => {
     for (const context of webviewNavigationContextsById.values()) {
       if (context.accountId === accountId) {
         context.loggingRevoked = true;
+        structuredWebappLogger.resetConsoleCapture(context.contents);
       }
     }
 
@@ -545,7 +541,7 @@ const bindIpcEvents = (): void => {
       await deleteAccount(id, accountId, partitionId);
       forgetTrustedOriginForAccount(accountId);
     });
-    main.webContents.send(EVENT_TYPE.ACCOUNT.DATA_DELETED);
+    main.webContents.send(EVENT_TYPE.ACCOUNT.DATA_DELETED, accountId);
   });
   ipcMain.on(EVENT_TYPE.WRAPPER.RELOAD, () => forwardWrapperReloadRequest(main.webContents));
   ipcMain.on(EVENT_TYPE.WRAPPER.RELAUNCH, () => lifecycle.relaunch());
@@ -1058,8 +1054,12 @@ class ElectronWrapperInit {
           // Electron emits did-start-navigation before will-navigate. Associate the initial
           // destination first so the cancellable navigation handlers can apply account trust.
           contents.on('did-start-navigation', (_event, url, isInPlace, isMainFrame) => {
+            if (isInPlace || !isMainFrame) {
+              return;
+            }
+            structuredWebappLogger.resetConsoleCapture(contents);
             const existingContext = Maybe.of(webviewNavigationContextsById.get(contents.id));
-            if (existingContext.isJust || isInPlace || !isMainFrame) {
+            if (existingContext.isJust) {
               return;
             }
 
@@ -1073,6 +1073,10 @@ class ElectronWrapperInit {
               logger.warn('Could not associate initial WebView navigation with a trusted account origin.');
             }
           });
+
+          // Also invalidate attempts started by the outgoing document during navigation.
+          contents.on('did-navigate', () => structuredWebappLogger.resetConsoleCapture(contents));
+          contents.once('destroyed', () => structuredWebappLogger.resetConsoleCapture(contents));
 
           contents.on('did-finish-load', () => {
             const activeContext = Maybe.of(webviewNavigationContextsById.get(contents.id));
@@ -1140,7 +1144,10 @@ class ElectronWrapperInit {
           });
 
           contents.on('console-message', messageDetails => {
-            void writeWebViewConsoleMessage(messageDetails);
+            const source = {sender: contents, senderFrame: messageDetails.frame};
+            if (structuredWebappLogger.shouldCaptureConsoleMessage(source, messageDetails.message)) {
+              void writeWebViewConsoleMessage(messageDetails);
+            }
           });
 
           if (enableSpellChecking) {
@@ -1202,9 +1209,6 @@ lifecycle.addRelaunchListeners(async () => {
 if (lifecycle.isFirstInstance) {
   initializeFirstInstance({
     bindIpcEvents,
-    ensureMainProcessLogFile() {
-      fs.ensureFileSync(getMainProcessLogPath({date: new Date(), logDirectory: getLogDirectory()}));
-    },
     handleAppEvents,
     initializeElectronWrapper() {
       try {
